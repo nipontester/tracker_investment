@@ -1,5 +1,29 @@
 import { requireSupabase } from "./supabaseClient.js";
 
+const DEFAULT_GOAL_YEARS = 5;
+const SETTINGS_COLUMNS = "goal, lang, dark, goal_years, goal_started_at";
+const LEGACY_SETTINGS_COLUMNS = "goal, lang, dark";
+
+const pad2 = (n) => String(n).padStart(2, "0");
+const todayISO = () => {
+  const date = new Date();
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+};
+
+function settingsColumnMissing(error) {
+  const text = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`;
+  return text.includes("goal_years") || text.includes("goal_started_at");
+}
+
+function withSettingsDefaults(data) {
+  if (!data) return null;
+  return {
+    goal_years: DEFAULT_GOAL_YEARS,
+    goal_started_at: todayISO(),
+    ...data,
+  };
+}
+
 /**
  * Data access layer backed by Supabase Postgres tables, scoped per
  * signed-in user via Row Level Security (see supabase-schema.sql).
@@ -77,17 +101,28 @@ export async function bulkInsertDeposits(userId, deposits) {
 }
 
 // ---------------------------------------------------------------------
-// Settings (goal / language / theme) -- one row per user, upserted
+// Settings (goal / timeline / language / theme) -- one row per user, upserted
 // ---------------------------------------------------------------------
 
 export async function getSettings(userId) {
-  const { data, error } = await requireSupabase()
+  const client = requireSupabase();
+  const { data, error } = await client
     .from("user_settings")
-    .select("goal, lang, dark")
+    .select(SETTINGS_COLUMNS)
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) throw error;
-  return data; // null if the user has never saved settings yet
+  if (!error) return withSettingsDefaults(data); // null if the user has never saved settings yet
+
+  // Lets older projects keep loading until supabase-schema.sql is re-run.
+  if (!settingsColumnMissing(error)) throw error;
+
+  const legacy = await client
+    .from("user_settings")
+    .select(LEGACY_SETTINGS_COLUMNS)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (legacy.error) throw legacy.error;
+  return withSettingsDefaults(legacy.data);
 }
 
 export async function upsertSettings(userId, partial) {

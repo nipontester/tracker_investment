@@ -36,6 +36,33 @@ const fmtDate = (iso, lang = "en") => {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+const DEFAULT_GOAL_YEARS = 5;
+const MIN_GOAL_YEARS = 1;
+const MAX_GOAL_YEARS = 50;
+const MS_PER_DAY = 86400000;
+const AVG_DAYS_PER_MONTH = 30.4375;
+
+const pad2 = (n) => String(n).padStart(2, "0");
+const isoFromDate = (date) =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+const todayISO = () => isoFromDate(new Date());
+const isISODate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+const dateFromISO = (iso) => {
+  const safe = isISODate(iso) ? iso : todayISO();
+  const [year, month, day] = safe.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+const normalizeGoalYears = (value, fallback = DEFAULT_GOAL_YEARS) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return fallback;
+  return Math.min(MAX_GOAL_YEARS, Math.max(MIN_GOAL_YEARS, Math.round(num)));
+};
+const addYearsISO = (iso, years) => {
+  const date = dateFromISO(iso);
+  date.setFullYear(date.getFullYear() + normalizeGoalYears(years));
+  return isoFromDate(date);
+};
+
 /* ---------- i18n ---------- */
 const DICT = {
   en: {
@@ -102,7 +129,10 @@ const DICT = {
     accountDesc: "You're signed in as",
     currencyDesc: "All amounts are shown in Thai Baht (฿).",
     goalSettingTitle: "Total investment goal",
-    goalSettingDesc: "Used to calculate the progress bar on the Dashboard.",
+    goalSettingDesc: "Used to calculate progress and monthly pace on the Dashboard.",
+    goalYearsSettingTitle: "Target timeline",
+    goalYearsSettingDesc: "How many years you want to reach the total investment goal.",
+    goalYearsUnit: "years",
     dataBackupTitle: "Data & backup",
     dataBackupDesc: "Export every record to CSV, or import from a CSV file.",
     importBtn: "Import",
@@ -142,13 +172,18 @@ const DICT = {
     projectionPace: (amt) => `~฿${amt} / month average`,
     projectionNote: "Estimate only — actual results may vary.",
     monthlyPaceTitle: "Monthly goal pace",
-    monthlyPaceSub: (months, year) => `${months} month${months === 1 ? "" : "s"} left in ${year}`,
+    monthlyPaceSub: (years, months) =>
+      `Target in ${years} year${years === 1 ? "" : "s"} · ${months} month${months === 1 ? "" : "s"} left`,
+    monthlyPacePastSub: (date) => `Target date passed on ${date}`,
     monthlyPaceNeeded: "Needed / month",
-    monthlyPaceCurrent: "Current pace",
+    monthlyPaceCurrent: "Avg since start",
     monthlyPaceReached: "Goal reached",
     monthlyPaceOnTrack: "On track",
     monthlyPaceBehind: "Behind pace",
+    monthlyPacePastDue: "Past deadline",
     monthlyPaceReachedHint: "Your total investment goal is already covered.",
+    monthlyPacePastHint: (amt) => `Deadline passed with ฿${amt} still remaining. Update the target timeline in Settings.`,
+    monthlyPaceNoDataHint: "No deposits recorded since this target started yet.",
     monthlyPaceHint: (amt) => `Keep around ฿${amt} per month to reach your goal.`,
     monthlyTitle: (year) => `${year} · monthly breakdown`,
     monthlyClose: "Close",
@@ -220,7 +255,10 @@ const DICT = {
     accountDesc: "คุณเข้าสู่ระบบด้วย",
     currencyDesc: "แสดงจำนวนเงินทั้งหมดเป็นบาทไทย (฿)",
     goalSettingTitle: "เป้าหมายการลงทุนรวม",
-    goalSettingDesc: "ใช้คำนวณ progress bar บนหน้า Dashboard",
+    goalSettingDesc: "ใช้คำนวณ progress bar และจังหวะฝากบนหน้า Dashboard",
+    goalYearsSettingTitle: "เป้าหมายภายในกี่ปี",
+    goalYearsSettingDesc: "จำนวนปีที่ให้ตัวเองเพื่อไปถึงเป้าการลงทุนรวม",
+    goalYearsUnit: "ปี",
     dataBackupTitle: "ข้อมูลและการสำรองข้อมูล",
     dataBackupDesc: "Export ทุกรายการเป็น CSV หรือ Import จากไฟล์ CSV",
     importBtn: "Import",
@@ -260,13 +298,17 @@ const DICT = {
     projectionPace: (amt) => `เฉลี่ย ~฿${amt} / เดือน`,
     projectionNote: "เป็นการประมาณการเท่านั้น ผลจริงอาจแตกต่างไป",
     monthlyPaceTitle: "จังหวะฝากรายเดือน",
-    monthlyPaceSub: (months, year) => `เหลือ ${months} เดือนในปี ${year}`,
+    monthlyPaceSub: (years, months) => `เป้าภายใน ${years} ปี · เหลือ ${months} เดือน`,
+    monthlyPacePastSub: (date) => `เลยกำหนดเมื่อ ${date}`,
     monthlyPaceNeeded: "ต้องฝาก / เดือน",
-    monthlyPaceCurrent: "เฉลี่ยตอนนี้",
+    monthlyPaceCurrent: "เฉลี่ยตั้งแต่เริ่มเป้า",
     monthlyPaceReached: "ถึงเป้าแล้ว",
     monthlyPaceOnTrack: "ตามเป้า",
     monthlyPaceBehind: "ต่ำกว่าเป้า",
+    monthlyPacePastDue: "เลยกำหนดแล้ว",
     monthlyPaceReachedHint: "ยอดรวมถึงเป้าการลงทุนแล้ว",
+    monthlyPacePastHint: (amt) => `เลยกำหนดแล้วและยังเหลือ ฿${amt} ปรับจำนวนปีในตั้งค่าเพื่อวางแผนใหม่`,
+    monthlyPaceNoDataHint: "ยังไม่มีรายการฝากหลังวันที่ตั้งเป้านี้",
     monthlyPaceHint: (amt) => `รักษาระดับประมาณ ฿${amt} ต่อเดือนเพื่อให้ถึงเป้า`,
     monthlyTitle: (year) => `รายละเอียดรายเดือน · ${year}`,
     monthlyClose: "ปิด",
@@ -410,28 +452,49 @@ function yoyChange(annual, year) {
   return ((curr - prev) / prev) * 100;
 }
 
-function monthlyGoalPace(totalAll, totalThisYear, goal) {
-  const today = new Date();
-  const year = today.getFullYear();
-  const monthsElapsed = today.getMonth() + 1;
-  const monthsRemaining = Math.max(12 - today.getMonth(), 1);
+function monthlyGoalPace(deposits, totalAll, goal, goalYears, goalStartedAt) {
+  const years = normalizeGoalYears(goalYears);
+  const startedAt = isISODate(goalStartedAt) ? goalStartedAt : todayISO();
+  const deadlineISO = addYearsISO(startedAt, years);
+  const today = dateFromISO(todayISO());
+  const startDate = dateFromISO(startedAt);
+  const deadlineDate = dateFromISO(deadlineISO);
+  const daysElapsed = Math.max(Math.ceil((today - startDate) / MS_PER_DAY), 0);
+  const daysRemaining = Math.ceil((deadlineDate - today) / MS_PER_DAY);
+  const monthsElapsed = Math.max(Math.ceil(daysElapsed / AVG_DAYS_PER_MONTH), 1);
+  const monthsRemaining = daysRemaining > 0
+    ? Math.max(Math.ceil(daysRemaining / AVG_DAYS_PER_MONTH), 1)
+    : 0;
+  const totalSinceStart = deposits
+    .filter((d) => d.date >= startedAt)
+    .reduce((sum, d) => sum + d.amount, 0);
   const remainingToGoal = Math.max(goal - totalAll, 0);
-  const neededPerMonth = remainingToGoal / monthsRemaining;
-  const currentMonthlyAvg = totalThisYear / Math.max(monthsElapsed, 1);
+  const neededPerMonth =
+    remainingToGoal === 0
+      ? 0
+      : monthsRemaining > 0
+        ? remainingToGoal / monthsRemaining
+        : remainingToGoal;
+  const currentMonthlyAvg = totalSinceStart / monthsElapsed;
   const status =
     remainingToGoal === 0
       ? "reached"
-      : currentMonthlyAvg >= neededPerMonth
-        ? "onTrack"
-        : "behind";
+      : daysRemaining < 0
+        ? "pastDue"
+        : currentMonthlyAvg >= neededPerMonth
+          ? "onTrack"
+          : "behind";
 
   return {
-    year,
+    goalYears: years,
+    goalStartedAt: startedAt,
+    deadlineISO,
     monthsElapsed,
     monthsRemaining,
     remainingToGoal,
     neededPerMonth,
     currentMonthlyAvg,
+    totalSinceStart,
     status,
   };
 }
@@ -718,16 +781,25 @@ function SummaryCard({ icon: Icon, label, value, sub, accent, delay, badge }) {
   );
 }
 
-function MonthlyPaceCard({ pace, t }) {
+function MonthlyPaceCard({ pace, t, lang }) {
+  const deadline = fmtDate(pace.deadlineISO, lang);
   const statusText = {
     reached: t.monthlyPaceReached,
     onTrack: t.monthlyPaceOnTrack,
     behind: t.monthlyPaceBehind,
+    pastDue: t.monthlyPacePastDue,
   }[pace.status];
   const hint =
     pace.status === "reached"
       ? t.monthlyPaceReachedHint
-      : t.monthlyPaceHint(THB(Math.ceil(pace.neededPerMonth)));
+      : pace.status === "pastDue"
+        ? t.monthlyPacePastHint(THB(Math.ceil(pace.remainingToGoal)))
+        : pace.totalSinceStart <= 0
+          ? t.monthlyPaceNoDataHint
+          : t.monthlyPaceHint(THB(Math.ceil(pace.neededPerMonth)));
+  const subtitle = pace.status === "pastDue"
+    ? t.monthlyPacePastSub(deadline)
+    : t.monthlyPaceSub(pace.goalYears, pace.monthsRemaining, deadline);
 
   return (
     <div className={`pace-card ${pace.status}`}>
@@ -735,7 +807,7 @@ function MonthlyPaceCard({ pace, t }) {
         <div className="pace-icon"><Target size={18} /></div>
         <div className="pace-copy">
           <div className="pace-title">{t.monthlyPaceTitle}</div>
-          <div className="pace-sub">{t.monthlyPaceSub(pace.monthsRemaining, pace.year)}</div>
+          <div className="pace-sub">{subtitle}</div>
         </div>
         <div className="pace-status">{statusText}</div>
       </div>
@@ -769,6 +841,7 @@ function MonthlyPaceCard({ pace, t }) {
         }
         .pace-card.onTrack .pace-status,
         .pace-card.reached .pace-status { background: rgba(34,197,94,0.12); color: var(--accent); }
+        .pace-card.pastDue .pace-status { background: rgba(245,158,11,0.14); color: #D97706; }
         .pace-metrics {
           display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
           margin-top: 14px;
@@ -959,6 +1032,8 @@ export default function DimeTracker({ user, onSignOut }) {
   const [loading, setLoading] = useState(true);
   const [deposits, setDeposits] = useState([]);
   const [goal, setGoal] = useState(1000000);
+  const [goalYears, setGoalYears] = useState(DEFAULT_GOAL_YEARS);
+  const [goalStartedAt, setGoalStartedAt] = useState(todayISO());
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -1021,6 +1096,8 @@ export default function DimeTracker({ user, onSignOut }) {
         setDeposits(rows);
         if (settings) {
           if (settings.goal > 0) setGoal(Number(settings.goal));
+          setGoalYears(normalizeGoalYears(settings.goal_years));
+          if (isISODate(settings.goal_started_at)) setGoalStartedAt(settings.goal_started_at);
           if (settings.lang === "th" || settings.lang === "en") setLang(settings.lang);
           if (typeof settings.dark === "boolean") setDark(settings.dark);
         }
@@ -1034,11 +1111,26 @@ export default function DimeTracker({ user, onSignOut }) {
   }, [user.id]);
 
   const persistGoal = useCallback((value) => {
+    const startedAt = todayISO();
     setGoal(value);
-    upsertSettings(user.id, { goal: value }).catch(() => {
+    setGoalStartedAt(startedAt);
+    upsertSettings(user.id, { goal: value, goal_started_at: startedAt }).catch(() => {
+      setGoalStartedAt((current) => (current === startedAt ? goalStartedAt : current));
       push("error", t.toastGoalFail);
     });
-  }, [push, t, user.id]);
+  }, [goalStartedAt, push, t, user.id]);
+
+  const persistGoalYears = useCallback((value) => {
+    const years = normalizeGoalYears(value, goalYears);
+    const startedAt = todayISO();
+    setGoalYears(years);
+    setGoalStartedAt(startedAt);
+    upsertSettings(user.id, { goal_years: years, goal_started_at: startedAt }).catch(() => {
+      setGoalYears((current) => (current === years ? goalYears : current));
+      setGoalStartedAt((current) => (current === startedAt ? goalStartedAt : current));
+      push("error", t.toastGoalFail);
+    });
+  }, [goalStartedAt, goalYears, push, t, user.id]);
 
   const persistLang = useCallback((value) => {
     setLang(value);
@@ -1319,6 +1411,8 @@ export default function DimeTracker({ user, onSignOut }) {
                 deposits={deposits}
                 dark={dark}
                 goal={goal}
+                goalYears={goalYears}
+                goalStartedAt={goalStartedAt}
                 onAdd={openAdd}
                 onDrillYear={setDrillYear}
                 t={t}
@@ -1366,6 +1460,8 @@ export default function DimeTracker({ user, onSignOut }) {
                 setDark={persistDark}
                 goal={goal}
                 setGoal={persistGoal}
+                goalYears={goalYears}
+                setGoalYears={persistGoalYears}
                 onExportAll={() => handleExport(deposits)}
                 onImport={triggerImport}
                 t={t}
@@ -1386,7 +1482,10 @@ export default function DimeTracker({ user, onSignOut }) {
 
 
 /* ---------- Dashboard page ---------- */
-function DashboardPage({ loading, totalAll, totalThisYear, count, latestDate, annual, deposits, dark, goal, onAdd, onDrillYear, t, lang }) {
+function DashboardPage({
+  loading, totalAll, totalThisYear, count, latestDate, annual, deposits, dark,
+  goal, goalYears, goalStartedAt, onAdd, onDrillYear, t, lang,
+}) {
   if (loading) {
     return (
       <div className="page-stack">
@@ -1404,7 +1503,7 @@ function DashboardPage({ loading, totalAll, totalThisYear, count, latestDate, an
   const currentYear = new Date().getFullYear();
   const yoy = yoyChange(annual, currentYear);
   const projection = yearEndProjection(deposits, currentYear);
-  const pace = monthlyGoalPace(totalAll, totalThisYear, goal);
+  const pace = monthlyGoalPace(deposits, totalAll, goal, goalYears, goalStartedAt);
 
   return (
     <div className="page-stack">
@@ -1457,7 +1556,7 @@ function DashboardPage({ loading, totalAll, totalThisYear, count, latestDate, an
         </div>
       )}
 
-      {goal > 0 && <MonthlyPaceCard pace={pace} t={t} />}
+      {goal > 0 && <MonthlyPaceCard pace={pace} t={t} lang={lang} />}
 
       {projection.applicable && projection.totalSoFar > 0 && (
         <div className="proj-card">
@@ -1703,15 +1802,35 @@ function AnnualPage({ loading, annualDesc, totalAll, onDrillYear, t }) {
 }
 
 /* ---------- Settings page ---------- */
-function SettingsPage({ dark, setDark, goal, setGoal, onExportAll, onImport, t, lang, setLang, user, onSignOut }) {
+function SettingsPage({
+  dark, setDark, goal, setGoal, goalYears, setGoalYears,
+  onExportAll, onImport, t, lang, setLang, user, onSignOut,
+}) {
   const [goalInput, setGoalInput] = useState(String(goal));
+  const [goalYearsInput, setGoalYearsInput] = useState(String(goalYears));
 
   useEffect(() => setGoalInput(String(goal)), [goal]);
+  useEffect(() => setGoalYearsInput(String(goalYears)), [goalYears]);
 
   const commitGoal = () => {
     const num = Number(goalInput);
-    if (!isNaN(num) && num > 0) setGoal(num);
-    else setGoalInput(String(goal));
+    if (!isNaN(num) && num > 0) {
+      if (num !== Number(goal)) setGoal(num);
+      else setGoalInput(String(goal));
+    } else {
+      setGoalInput(String(goal));
+    }
+  };
+
+  const commitGoalYears = () => {
+    const num = Number(goalYearsInput);
+    if (Number.isFinite(num) && num > 0) {
+      const years = normalizeGoalYears(num, goalYears);
+      if (years !== goalYears) setGoalYears(years);
+      setGoalYearsInput(String(years));
+    } else {
+      setGoalYearsInput(String(goalYears));
+    }
   };
 
   return (
@@ -1778,6 +1897,25 @@ function SettingsPage({ dark, setDark, goal, setGoal, onExportAll, onImport, t, 
             />
           </div>
         </div>
+        <div className="settings-row">
+          <div>
+            <div className="settings-title">{t.goalYearsSettingTitle}</div>
+            <div className="settings-desc">{t.goalYearsSettingDesc}</div>
+          </div>
+          <div className="goal-input-wrap years-input-wrap">
+            <input
+              type="number"
+              min={MIN_GOAL_YEARS}
+              max={MAX_GOAL_YEARS}
+              step="1"
+              value={goalYearsInput}
+              onChange={(e) => setGoalYearsInput(e.target.value)}
+              onBlur={commitGoalYears}
+              onKeyDown={(e) => e.key === "Enter" && commitGoalYears()}
+            />
+            <span>{t.goalYearsUnit}</span>
+          </div>
+        </div>
       </div>
 
       <div className="table-card" style={{ padding: 22 }}>
@@ -1801,6 +1939,7 @@ function SettingsPage({ dark, setDark, goal, setGoal, onExportAll, onImport, t, 
         .goal-input-wrap { display: flex; align-items: center; gap: 6px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 10px; padding: 0 10px; height: 36px; }
         .goal-input-wrap span { font-size: 13px; color: var(--text-muted); font-weight: 700; }
         .goal-input-wrap input { border: none; background: none; outline: none; font-size: 13.5px; color: var(--text); width: 110px; font-family: inherit; }
+        .years-input-wrap input { width: 52px; text-align: right; }
       `}</style>
     </div>
   );

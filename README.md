@@ -5,7 +5,7 @@ A modern, responsive personal-finance dashboard for tracking deposits into the D
 ## Features
 
 - Email/password login -- each account only ever sees its own data
-- Dashboard with summary cards, year-end projection, and YoY comparison
+- Dashboard with summary cards, year-end projection, monthly pace, and YoY comparison
 - Annual investment bar chart with click-through monthly drilldown
 - Transaction CRUD with search, filtering (year / category), and sorting
 - CSV export / import
@@ -24,7 +24,7 @@ This app needs a (free) Supabase project to handle login and store data.
    VITE_SUPABASE_URL=https://your-project-ref.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-public-key
    ```
-4. In your Supabase project, go to the **SQL Editor**, paste in the entire contents of `supabase-schema.sql` (included in this folder), and run it. This creates the `deposits` and `user_settings` tables along with Row Level Security policies, so each signed-in user can only ever see or edit their own rows -- enforced at the database level, not just in the app.
+4. In your Supabase project, go to the **SQL Editor**, paste in the entire contents of `supabase-schema.sql` (included in this folder), and run it. This creates the `deposits` and `user_settings` tables along with Row Level Security policies, so each signed-in user can only ever see or edit their own rows -- enforced at the database level, not just in the app. If you already ran an older version of the schema, run this file again to add the target-year settings (`goal_years`, `goal_started_at`) safely.
 5. In **Authentication -> URL Configuration**, set your production **Site URL** (for example `https://trackerinvestment.netlify.app`) and add it to **Redirect URLs**. This is required for forgot-password reset links to return users to the app.
 6. (Optional but recommended for testing) In **Authentication -> Providers -> Email**, you can turn off "Confirm email" while developing, so new signups can log in immediately without clicking a confirmation link. Turn it back on before sharing the app publicly.
 
@@ -77,5 +77,6 @@ npm run preview
 ## Notes
 
 - Each account's data is completely isolated from every other account, enforced by Postgres Row Level Security -- not just hidden in the UI.
+- Monthly pace uses `user_settings.goal`, `goal_years`, and `goal_started_at`. Changing the goal amount or target years starts a new target timeline from today.
 - Forgot-password reset emails are handled by Supabase Auth. The production URL must be allowed in Supabase redirect settings.
 - The anon Supabase key is meant to be public (it ships in the browser bundle) -- never put your Supabase **service role** key in this project.
