@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Mail, Lock, Loader2, AlertCircle } from "lucide-react";
-import { supabase } from "./supabaseClient.js";
+import { requireSupabase } from "./supabaseClient.js";
 
 const COPY = {
   en: {
@@ -54,6 +54,7 @@ export default function Auth({ lang = "en" }) {
     setInfo("");
     setLoading(true);
     try {
+      const supabase = requireSupabase();
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;

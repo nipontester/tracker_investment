@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient.js";
+import { requireSupabase } from "./supabaseClient.js";
 
 /**
  * Data access layer backed by Supabase Postgres tables, scoped per
@@ -14,7 +14,7 @@ import { supabase } from "./supabaseClient.js";
 // ---------------------------------------------------------------------
 
 export async function listDeposits() {
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("deposits")
     .select("id, date, amount, category, note")
     .order("date", { ascending: false });
@@ -23,7 +23,7 @@ export async function listDeposits() {
 }
 
 export async function insertDeposit(userId, deposit) {
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("deposits")
     .insert({
       user_id: userId,
@@ -39,7 +39,7 @@ export async function insertDeposit(userId, deposit) {
 }
 
 export async function updateDeposit(deposit) {
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("deposits")
     .update({
       date: deposit.date,
@@ -55,7 +55,7 @@ export async function updateDeposit(deposit) {
 }
 
 export async function deleteDeposit(id) {
-  const { error } = await supabase.from("deposits").delete().eq("id", id);
+  const { error } = await requireSupabase().from("deposits").delete().eq("id", id);
   if (error) throw error;
 }
 
@@ -68,7 +68,7 @@ export async function bulkInsertDeposits(userId, deposits) {
     category: d.category,
     note: d.note ?? "",
   }));
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("deposits")
     .insert(rows)
     .select("id, date, amount, category, note");
@@ -81,7 +81,7 @@ export async function bulkInsertDeposits(userId, deposits) {
 // ---------------------------------------------------------------------
 
 export async function getSettings(userId) {
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("user_settings")
     .select("goal, lang, dark")
     .eq("user_id", userId)
@@ -91,7 +91,7 @@ export async function getSettings(userId) {
 }
 
 export async function upsertSettings(userId, partial) {
-  const { error } = await supabase
+  const { error } = await requireSupabase()
     .from("user_settings")
     .upsert({ user_id: userId, ...partial, updated_at: new Date().toISOString() });
   if (error) throw error;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "./supabaseClient.js";
+import { supabase, supabaseConfigError } from "./supabaseClient.js";
 
 /**
  * Tracks the current Supabase auth session. Exposes the signed-in user
@@ -14,11 +14,26 @@ export function useAuth() {
   useEffect(() => {
     let cancelled = false;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (cancelled) return;
-      setUser(session?.user ?? null);
+    if (!supabase) {
       setLoading(false);
-    });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled) return;
+        setUser(session?.user ?? null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setUser(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
@@ -31,7 +46,7 @@ export function useAuth() {
     };
   }, []);
 
-  const signOut = () => supabase.auth.signOut();
+  const signOut = () => supabase?.auth.signOut();
 
-  return { user, loading, signOut };
+  return { user, loading, signOut, configError: supabaseConfigError };
 }

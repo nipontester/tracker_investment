@@ -49,7 +49,7 @@ npm run preview
 
 1. Push this project to GitHub as usual.
 2. In Netlify, connect the repo. Build command: `npm run build`. Publish directory: `dist`.
-3. In Netlify's site settings, go to **Environment variables** and add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` with the same values from your `.env` file. (Netlify never reads your local `.env` file -- you must set these in its dashboard.)
+3. In Netlify's site settings, go to **Environment variables** and add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` with the same values from your `.env` file. (Netlify never reads your local `.env` file -- you must set these in its dashboard.) After adding or changing these values, trigger a new deploy because Vite reads `VITE_*` variables during the build.
 4. Deploy. Anyone who signs up on the live site gets their own private account and data, accessible from any device they log in on.
 
 ## Project structure
