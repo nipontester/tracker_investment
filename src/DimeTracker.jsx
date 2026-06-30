@@ -15,6 +15,9 @@ import { storage } from "./storage.js";
    Dime Investment Tracker
    A premium personal-finance dashboard for tracking Dime app deposits.
    Data persists across sessions via localStorage (see src/storage.js).
+
+   Build marker: 2026-06-30 — includes sidebar nav fixed-height fix,
+   font preload via index.html, hamburger toggle fix (JS-driven isMobile).
 ------------------------------------------------------------------------- */
 
 const THB = (n) =>
@@ -1648,6 +1651,10 @@ function SettingsPage({ dark, setDark, goal, setGoal, onExportAll, onImport, t, 
           </div>
         </div>
       </div>
+
+      <p style={{ fontSize: 11, color: "var(--text-faint)", textAlign: "center", margin: "4px 0 0" }}>
+        build 2026-06-30
+      </p>
 
       <style>{`
         .goal-input-wrap { display: flex; align-items: center; gap: 6px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 10px; padding: 0 10px; height: 36px; }
