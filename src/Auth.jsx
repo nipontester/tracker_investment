@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Mail, Lock, Loader2, AlertCircle, LineChart, ShieldCheck, Target } from "lucide-react";
+import { Mail, Lock, Loader2, AlertCircle, Target } from "lucide-react";
 import { requireSupabase } from "./supabaseClient.js";
 
 const COPY = {
@@ -8,16 +8,10 @@ const COPY = {
     createAccount: "Start tracking your investments",
     resetPassword: "Reset your password",
     forgotPassword: "Forgot your password?",
-    kicker: "Private investment tracker",
     loginSub: "Sign in to view your deposits, goal progress, and monthly pace.",
     signupSub: "Create an account to save deposits and follow your investment goal.",
     forgotSub: "Enter your email and we'll send you a password reset link.",
     resetSub: "Choose a new password for your account.",
-    previewTitle: "Your progress at a glance",
-    previewGoal: "Goal progress",
-    previewSaved: "Saved",
-    previewPace: "Monthly pace",
-    previewSecure: "Private per account",
     email: "Email",
     password: "Password",
     newPassword: "New password",
@@ -44,16 +38,10 @@ const COPY = {
     createAccount: "เริ่มติดตามการลงทุนของคุณ",
     resetPassword: "ตั้งรหัสผ่านใหม่",
     forgotPassword: "ลืมรหัสผ่าน?",
-    kicker: "พื้นที่ติดตามการลงทุนส่วนตัว",
     loginSub: "เข้าสู่ระบบเพื่อดูยอดฝาก เป้าหมาย และจังหวะลงทุนของคุณ",
     signupSub: "สมัครเพื่อบันทึกเงินฝากและติดตามเป้าหมายการลงทุนของคุณ",
     forgotSub: "กรอกอีเมล แล้วเราจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ให้คุณ",
     resetSub: "ตั้งรหัสผ่านใหม่สำหรับบัญชีของคุณ",
-    previewTitle: "เห็นภาพความคืบหน้าได้เร็วขึ้น",
-    previewGoal: "ความคืบหน้าเป้าหมาย",
-    previewSaved: "ยอดที่บันทึก",
-    previewPace: "จังหวะฝากรายเดือน",
-    previewSecure: "ข้อมูลแยกตามบัญชี",
     email: "อีเมล",
     password: "รหัสผ่าน",
     newPassword: "รหัสผ่านใหม่",
@@ -190,59 +178,17 @@ export default function Auth({
 
   return (
     <div className="auth-shell">
-      <div className="auth-layout">
-        <section className="auth-intro" aria-hidden="true">
-          <div className="auth-brand intro-brand">
-            <div className="auth-mark"><Target size={22} /></div>
-            <div>
-              <div className="auth-title">Dime!</div>
-              <div className="auth-brand-sub">Investment Tracker</div>
-            </div>
+      <form className="auth-card" onSubmit={submit}>
+        <div className="auth-brand">
+          <div className="auth-mark"><Target size={20} /></div>
+          <div>
+            <div className="auth-title">Dime!</div>
+            <div className="auth-brand-sub">Investment Tracker</div>
           </div>
-          <div className="preview-card">
-            <div className="preview-top">
-              <div>
-                <div className="preview-kicker">{t.kicker}</div>
-                <h2>{t.previewTitle}</h2>
-              </div>
-              <div className="preview-icon"><LineChart size={20} /></div>
-            </div>
-            <div className="preview-progress">
-              <div className="preview-progress-head">
-                <span>{t.previewGoal}</span>
-                <strong>42%</strong>
-              </div>
-              <div className="preview-track"><div /></div>
-            </div>
-            <div className="preview-stats">
-              <div>
-                <span>{t.previewSaved}</span>
-                <strong>฿420,000</strong>
-              </div>
-              <div>
-                <span>{t.previewPace}</span>
-                <strong>฿9,667</strong>
-              </div>
-            </div>
-            <div className="preview-note">
-              <ShieldCheck size={15} />
-              <span>{t.previewSecure}</span>
-            </div>
-          </div>
-        </section>
+        </div>
 
-        <form className="auth-card" onSubmit={submit}>
-          <div className="auth-brand form-brand">
-            <div className="auth-mark"><Target size={20} /></div>
-            <div>
-              <div className="auth-title">Dime!</div>
-              <div className="auth-brand-sub">Investment Tracker</div>
-            </div>
-          </div>
-
-          <div className="auth-kicker">{t.kicker}</div>
-          <h1>{title}</h1>
-          <p className="auth-sub">{subtitle}</p>
+        <h1>{title}</h1>
+        <p className="auth-sub">{subtitle}</p>
 
         {mode !== "reset" && (
           <label className="auth-field">
@@ -330,8 +276,7 @@ export default function Auth({
             {mode === "login" ? t.switchToSignup : t.switchToLogin}
           </button>
         </div>
-        </form>
-      </div>
+      </form>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -340,57 +285,19 @@ export default function Auth({
           min-height: 100vh; display: flex; align-items: center; justify-content: center;
           background: #F8FAFC; padding: 24px; font-family: 'Inter', 'Prompt', sans-serif;
         }
-        .auth-layout {
-          width: 100%; max-width: 920px; display: grid; grid-template-columns: minmax(0, 1fr) 400px;
-          gap: 24px; align-items: stretch;
-        }
-        .auth-intro {
-          background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 20px; padding: 30px;
-          box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 1px 6px -2px rgba(15,23,42,0.06);
-          display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;
-        }
         .auth-card {
-          width: 100%; background: #FFFFFF; border: 1px solid #E5E7EB;
+          width: 100%; max-width: 400px; background: #FFFFFF; border: 1px solid #E5E7EB;
           border-radius: 20px; padding: 32px 28px; box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 1px 6px -2px rgba(15,23,42,0.06);
         }
-        .auth-brand { display: flex; align-items: center; gap: 9px; }
-        .form-brand { margin-bottom: 22px; }
-        .intro-brand { margin-bottom: 28px; }
+        .auth-brand { display: flex; align-items: center; gap: 9px; margin-bottom: 22px; }
         .auth-mark {
           width: 38px; height: 38px; border-radius: 12px; background: rgba(34,197,94,0.12);
           color: #16A34A; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
         .auth-title { font-size: 16px; font-weight: 800; color: #111827; line-height: 1.15; }
         .auth-brand-sub { font-size: 11px; color: #6B7280; font-weight: 600; margin-top: 2px; }
-        .auth-kicker {
-          font-size: 12px; font-weight: 800; color: #16A34A; margin-bottom: 8px; line-height: 1.3;
-        }
         .auth-card h1 { font-size: 20px; font-weight: 800; color: #111827; margin: 0 0 4px; letter-spacing: 0; line-height: 1.25; min-height: 25px; }
         .auth-sub { font-size: 13.5px; color: #6B7280; margin: 0 0 24px; line-height: 1.5; min-height: 40px; }
-        .preview-card {
-          background: #111827; color: #FFFFFF; border-radius: 18px; padding: 22px;
-          box-shadow: 0 20px 40px -20px rgba(17,24,39,0.45);
-        }
-        .preview-top { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; margin-bottom: 24px; }
-        .preview-kicker { font-size: 12px; color: #86EFAC; font-weight: 800; margin-bottom: 6px; }
-        .preview-top h2 { margin: 0; font-size: 24px; line-height: 1.18; letter-spacing: 0; max-width: 300px; }
-        .preview-icon {
-          width: 42px; height: 42px; border-radius: 12px; background: rgba(34,197,94,0.18);
-          color: #86EFAC; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-        }
-        .preview-progress { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 14px; }
-        .preview-progress-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #D1D5DB; margin-bottom: 10px; }
-        .preview-progress-head strong { font-size: 18px; color: #FFFFFF; }
-        .preview-track { height: 8px; border-radius: 999px; background: rgba(255,255,255,0.13); overflow: hidden; }
-        .preview-track div { width: 42%; height: 100%; border-radius: 999px; background: #22C55E; }
-        .preview-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
-        .preview-stats div { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 14px; }
-        .preview-stats span { display: block; color: #D1D5DB; font-size: 11.5px; line-height: 1.35; min-height: 32px; }
-        .preview-stats strong { display: block; margin-top: 6px; font-size: 17px; line-height: 1.2; color: #FFFFFF; }
-        .preview-note {
-          display: flex; align-items: center; gap: 7px; color: #BBF7D0; font-size: 12px; font-weight: 700;
-          margin-top: 16px;
-        }
         .auth-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
         .auth-field span:first-child { font-size: 12.5px; font-weight: 600; color: #6B7280; }
         .auth-input-wrap {
@@ -431,14 +338,9 @@ export default function Auth({
           background: none; border: none; color: #22C55E; font-weight: 700; cursor: pointer;
           font-size: 13px; font-family: inherit; padding: 0;
         }
-        @media (max-width: 820px) {
-          .auth-layout { max-width: 420px; grid-template-columns: 1fr; }
-          .auth-intro { display: none; }
-          .auth-card { padding: 30px 24px; }
-        }
         @media (max-width: 420px) {
-          .auth-shell { padding: 16px; align-items: flex-start; }
-          .auth-card { border-radius: 18px; padding: 26px 20px; }
+          .auth-shell { min-height: 100dvh; padding: 16px; align-items: center; }
+          .auth-card { border-radius: 18px; padding: 26px 20px; box-shadow: 0 1px 2px rgba(15,23,42,0.05); }
           .auth-sub { min-height: 0; }
         }
       `}</style>
