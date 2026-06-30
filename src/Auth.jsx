@@ -154,7 +154,7 @@ export default function Auth({ lang = "en" }) {
         .auth-brand { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; }
         .auth-mark { font-size: 24px; }
         .auth-title { font-size: 16px; font-weight: 800; color: #111827; }
-        .auth-card h1 { font-size: 20px; font-weight: 800; color: #111827; margin: 0 0 4px; letter-spacing: -0.01em; }
+        .auth-card h1 { font-size: 20px; font-weight: 800; color: #111827; margin: 0 0 4px; letter-spacing: 0; line-height: 1.25; min-height: 25px; }
         .auth-sub { font-size: 13px; color: #6B7280; margin: 0 0 24px; line-height: 1.5; }
         .auth-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
         .auth-field span:first-child { font-size: 12.5px; font-weight: 600; color: #6B7280; }
