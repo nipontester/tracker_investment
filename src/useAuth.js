@@ -10,6 +10,7 @@ import { supabase, supabaseConfigError } from "./supabaseClient.js";
 export function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -20,6 +21,17 @@ export function useAuth() {
         cancelled = true;
       };
     }
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setPasswordRecovery(true);
+      }
+      if (event === "SIGNED_OUT") {
+        setPasswordRecovery(false);
+      }
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
 
     supabase.auth
       .getSession()
@@ -35,11 +47,6 @@ export function useAuth() {
         if (!cancelled) setLoading(false);
       });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
     return () => {
       cancelled = true;
       listener.subscription.unsubscribe();
@@ -47,6 +54,14 @@ export function useAuth() {
   }, []);
 
   const signOut = () => supabase?.auth.signOut();
+  const clearPasswordRecovery = () => setPasswordRecovery(false);
 
-  return { user, loading, signOut, configError: supabaseConfigError };
+  return {
+    user,
+    loading,
+    signOut,
+    configError: supabaseConfigError,
+    passwordRecovery,
+    clearPasswordRecovery,
+  };
 }

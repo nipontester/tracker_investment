@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Mail, Lock, Loader2, AlertCircle } from "lucide-react";
 import { requireSupabase } from "./supabaseClient.js";
 
@@ -6,47 +6,118 @@ const COPY = {
   en: {
     welcomeBack: "Welcome back",
     createAccount: "Create your account",
+    resetPassword: "Reset your password",
+    forgotPassword: "Forgot your password?",
     loginSub: "Sign in to track your Dime! investments.",
     signupSub: "Set up your personal investment tracker.",
+    forgotSub: "Enter your email and we'll send you a password reset link.",
+    resetSub: "Choose a new password for your account.",
     email: "Email",
     password: "Password",
+    newPassword: "New password",
+    confirmPassword: "Confirm password",
     passwordHint: "At least 6 characters",
     login: "Sign in",
     signup: "Create account",
+    sendResetLink: "Send reset link",
+    updatePassword: "Update password",
     noAccount: "Don't have an account?",
     haveAccount: "Already have an account?",
+    rememberPassword: "Remember your password?",
     switchToSignup: "Sign up",
     switchToLogin: "Sign in",
     checkEmail: "Check your email to confirm your account, then sign in.",
+    resetEmailSent: "Check your email for a password reset link.",
+    resetSuccess: "Password updated. Please sign in with your new password.",
+    passwordMismatch: "Passwords don't match.",
+    passwordTooShort: "Password must be at least 6 characters.",
     genericError: "Something went wrong. Please try again.",
   },
   th: {
     welcomeBack: "ยินดีต้อนรับกลับมา",
     createAccount: "สร้างบัญชีของคุณ",
+    resetPassword: "ตั้งรหัสผ่านใหม่",
+    forgotPassword: "ลืมรหัสผ่าน?",
     loginSub: "เข้าสู่ระบบเพื่อติดตามการลงทุนใน Dime! ของคุณ",
     signupSub: "ตั้งค่าตัวติดตามการลงทุนส่วนตัวของคุณ",
+    forgotSub: "กรอกอีเมล แล้วเราจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ให้คุณ",
+    resetSub: "ตั้งรหัสผ่านใหม่สำหรับบัญชีของคุณ",
     email: "อีเมล",
     password: "รหัสผ่าน",
+    newPassword: "รหัสผ่านใหม่",
+    confirmPassword: "ยืนยันรหัสผ่านใหม่",
     passwordHint: "อย่างน้อย 6 ตัวอักษร",
     login: "เข้าสู่ระบบ",
     signup: "สร้างบัญชี",
+    sendResetLink: "ส่งลิงก์ตั้งรหัสผ่าน",
+    updatePassword: "บันทึกรหัสผ่านใหม่",
     noAccount: "ยังไม่มีบัญชี?",
     haveAccount: "มีบัญชีอยู่แล้ว?",
+    rememberPassword: "จำรหัสผ่านได้แล้ว?",
     switchToSignup: "สมัครสมาชิก",
     switchToLogin: "เข้าสู่ระบบ",
     checkEmail: "ตรวจสอบอีเมลของคุณเพื่อยืนยันบัญชี แล้วเข้าสู่ระบบอีกครั้ง",
+    resetEmailSent: "ตรวจสอบอีเมลของคุณสำหรับลิงก์ตั้งรหัสผ่านใหม่",
+    resetSuccess: "เปลี่ยนรหัสผ่านแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่",
+    passwordMismatch: "รหัสผ่านทั้งสองช่องไม่ตรงกัน",
+    passwordTooShort: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร",
     genericError: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
   },
 };
 
-export default function Auth({ lang = "en" }) {
+const browserLang =
+  typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("th")
+    ? "th"
+    : "en";
+
+export default function Auth({
+  lang = browserLang,
+  initialMode = "login",
+  initialInfo = "",
+  onInfoConsumed,
+  onResetComplete,
+}) {
   const t = COPY[lang] || COPY.en;
-  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const [mode, setMode] = useState(initialMode); // "login" | "signup" | "forgot" | "reset"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const [info, setInfo] = useState(initialInfo);
+
+  useEffect(() => {
+    setMode(initialMode);
+    setPassword("");
+    setConfirmPassword("");
+    setError("");
+  }, [initialMode]);
+
+  useEffect(() => {
+    if (!initialInfo) return;
+    setInfo(initialInfo);
+    onInfoConsumed?.();
+  }, [initialInfo, onInfoConsumed]);
+
+  const switchMode = (nextMode) => {
+    setMode(nextMode);
+    setPassword("");
+    setConfirmPassword("");
+    setError("");
+    setInfo("");
+  };
+
+  const returnToLogin = async () => {
+    if (mode === "reset") {
+      try {
+        await requireSupabase().auth.signOut();
+      } catch {
+        // Ignore sign-out failures here; the login screen can still recover.
+      }
+      onResetComplete?.("");
+    }
+    switchMode("login");
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -58,10 +129,26 @@ export default function Auth({ lang = "en" }) {
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-      } else {
+      } else if (mode === "signup") {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         setInfo(t.checkEmail);
+      } else if (mode === "forgot") {
+        const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+        if (error) throw error;
+        setInfo(t.resetEmailSent);
+      } else if (mode === "reset") {
+        if (password.length < 6) throw new Error(t.passwordTooShort);
+        if (password !== confirmPassword) throw new Error(t.passwordMismatch);
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+        setPassword("");
+        setConfirmPassword("");
+        setMode("login");
+        setInfo(t.resetSuccess);
+        await supabase.auth.signOut();
+        onResetComplete?.(t.resetSuccess);
       }
     } catch (err) {
       setError(err?.message || t.genericError);
@@ -69,6 +156,25 @@ export default function Auth({ lang = "en" }) {
       setLoading(false);
     }
   };
+
+  const title = {
+    login: t.welcomeBack,
+    signup: t.createAccount,
+    forgot: t.forgotPassword,
+    reset: t.resetPassword,
+  }[mode];
+  const subtitle = {
+    login: t.loginSub,
+    signup: t.signupSub,
+    forgot: t.forgotSub,
+    reset: t.resetSub,
+  }[mode];
+  const submitLabel = {
+    login: t.login,
+    signup: t.signup,
+    forgot: t.sendResetLink,
+    reset: t.updatePassword,
+  }[mode];
 
   return (
     <div className="auth-shell">
@@ -78,40 +184,62 @@ export default function Auth({ lang = "en" }) {
           <div className="auth-title">Dime!</div>
         </div>
 
-        <h1>{mode === "login" ? t.welcomeBack : t.createAccount}</h1>
-        <p className="auth-sub">{mode === "login" ? t.loginSub : t.signupSub}</p>
+        <h1>{title}</h1>
+        <p className="auth-sub">{subtitle}</p>
 
-        <label className="auth-field">
-          <span>{t.email}</span>
-          <div className="auth-input-wrap">
-            <Mail size={16} />
-            <input
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-            />
-          </div>
-        </label>
+        {mode !== "reset" && (
+          <label className="auth-field">
+            <span>{t.email}</span>
+            <div className="auth-input-wrap">
+              <Mail size={16} />
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+            </div>
+          </label>
+        )}
 
-        <label className="auth-field">
-          <span>{t.password}</span>
-          <div className="auth-input-wrap">
-            <Lock size={16} />
-            <input
-              type="password"
-              required
-              minLength={6}
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-            />
-          </div>
-          {mode === "signup" && <span className="auth-hint">{t.passwordHint}</span>}
-        </label>
+        {mode !== "forgot" && (
+          <label className="auth-field">
+            <span>{mode === "reset" ? t.newPassword : t.password}</span>
+            <div className="auth-input-wrap">
+              <Lock size={16} />
+              <input
+                type="password"
+                required
+                minLength={6}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+            {(mode === "signup" || mode === "reset") && <span className="auth-hint">{t.passwordHint}</span>}
+          </label>
+        )}
+
+        {mode === "reset" && (
+          <label className="auth-field">
+            <span>{t.confirmPassword}</span>
+            <div className="auth-input-wrap">
+              <Lock size={16} />
+              <input
+                type="password"
+                required
+                minLength={6}
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+          </label>
+        )}
 
         {error && (
           <div className="auth-error">
@@ -122,17 +250,24 @@ export default function Auth({ lang = "en" }) {
         {info && <div className="auth-info">{info}</div>}
 
         <button type="submit" className="auth-submit" disabled={loading}>
-          {loading ? <Loader2 size={16} className="auth-spin" /> : mode === "login" ? t.login : t.signup}
+          {loading ? <Loader2 size={16} className="auth-spin" /> : submitLabel}
         </button>
 
+        {mode === "login" && (
+          <div className="auth-forgot">
+            <button type="button" onClick={() => switchMode("forgot")}>
+              {t.forgotPassword}
+            </button>
+          </div>
+        )}
+
         <div className="auth-switch">
-          {mode === "login" ? t.noAccount : t.haveAccount}{" "}
+          {mode === "login" ? t.noAccount : mode === "signup" ? t.haveAccount : t.rememberPassword}{" "}
           <button
             type="button"
             onClick={() => {
-              setMode((m) => (m === "login" ? "signup" : "login"));
-              setError("");
-              setInfo("");
+              if (mode === "login") switchMode("signup");
+              else returnToLogin();
             }}
           >
             {mode === "login" ? t.switchToSignup : t.switchToLogin}
@@ -186,6 +321,11 @@ export default function Auth({ lang = "en" }) {
         .auth-submit:disabled { opacity: 0.7; cursor: not-allowed; }
         .auth-spin { animation: auth-spin 0.8s linear infinite; }
         @keyframes auth-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .auth-forgot { text-align: center; margin-top: 12px; }
+        .auth-forgot button {
+          background: none; border: none; color: #16A34A; cursor: pointer; font-size: 12.5px;
+          font-weight: 700; font-family: inherit; padding: 0;
+        }
         .auth-switch { text-align: center; font-size: 13px; color: #6B7280; margin-top: 18px; }
         .auth-switch button {
           background: none; border: none; color: #22C55E; font-weight: 700; cursor: pointer;

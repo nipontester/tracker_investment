@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useAuth } from "./useAuth.js";
 import Auth from "./Auth.jsx";
@@ -110,10 +110,30 @@ function ConfigErrorScreen({ message }) {
 }
 
 function AppContent() {
-  const { user, loading, signOut, configError } = useAuth();
+  const {
+    user,
+    loading,
+    signOut,
+    configError,
+    passwordRecovery,
+    clearPasswordRecovery,
+  } = useAuth();
+  const [authNotice, setAuthNotice] = useState("");
 
   if (configError) {
     return <ConfigErrorScreen message={configError} />;
+  }
+
+  if (passwordRecovery) {
+    return (
+      <Auth
+        initialMode="reset"
+        onResetComplete={(message) => {
+          clearPasswordRecovery();
+          setAuthNotice(message || "");
+        }}
+      />
+    );
   }
 
   if (loading) {
@@ -134,7 +154,7 @@ function AppContent() {
   }
 
   if (!user) {
-    return <Auth />;
+    return <Auth initialInfo={authNotice} onInfoConsumed={() => setAuthNotice("")} />;
   }
 
   return <DimeTracker user={user} onSignOut={signOut} />;

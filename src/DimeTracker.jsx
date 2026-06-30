@@ -141,6 +141,15 @@ const DICT = {
     projectionAt: "Projected total",
     projectionPace: (amt) => `~฿${amt} / month average`,
     projectionNote: "Estimate only — actual results may vary.",
+    monthlyPaceTitle: "Monthly goal pace",
+    monthlyPaceSub: (months, year) => `${months} month${months === 1 ? "" : "s"} left in ${year}`,
+    monthlyPaceNeeded: "Needed / month",
+    monthlyPaceCurrent: "Current pace",
+    monthlyPaceReached: "Goal reached",
+    monthlyPaceOnTrack: "On track",
+    monthlyPaceBehind: "Behind pace",
+    monthlyPaceReachedHint: "Your total investment goal is already covered.",
+    monthlyPaceHint: (amt) => `Keep around ฿${amt} per month to reach your goal.`,
     monthlyTitle: (year) => `${year} · monthly breakdown`,
     monthlyClose: "Close",
     monthlyEmpty: "No deposits recorded for this month.",
@@ -250,6 +259,15 @@ const DICT = {
     projectionAt: "ยอดรวมที่คาดการณ์",
     projectionPace: (amt) => `เฉลี่ย ~฿${amt} / เดือน`,
     projectionNote: "เป็นการประมาณการเท่านั้น ผลจริงอาจแตกต่างไป",
+    monthlyPaceTitle: "จังหวะฝากรายเดือน",
+    monthlyPaceSub: (months, year) => `เหลือ ${months} เดือนในปี ${year}`,
+    monthlyPaceNeeded: "ต้องฝาก / เดือน",
+    monthlyPaceCurrent: "เฉลี่ยตอนนี้",
+    monthlyPaceReached: "ถึงเป้าแล้ว",
+    monthlyPaceOnTrack: "ตามเป้า",
+    monthlyPaceBehind: "ต่ำกว่าเป้า",
+    monthlyPaceReachedHint: "ยอดรวมถึงเป้าการลงทุนแล้ว",
+    monthlyPaceHint: (amt) => `รักษาระดับประมาณ ฿${amt} ต่อเดือนเพื่อให้ถึงเป้า`,
     monthlyTitle: (year) => `รายละเอียดรายเดือน · ${year}`,
     monthlyClose: "ปิด",
     monthlyEmpty: "ไม่มีรายการฝากในเดือนนี้",
@@ -390,6 +408,32 @@ function yoyChange(annual, year) {
   const prev = annual[idx - 1].total;
   if (prev === 0) return null;
   return ((curr - prev) / prev) * 100;
+}
+
+function monthlyGoalPace(totalAll, totalThisYear, goal) {
+  const today = new Date();
+  const year = today.getFullYear();
+  const monthsElapsed = today.getMonth() + 1;
+  const monthsRemaining = Math.max(12 - today.getMonth(), 1);
+  const remainingToGoal = Math.max(goal - totalAll, 0);
+  const neededPerMonth = remainingToGoal / monthsRemaining;
+  const currentMonthlyAvg = totalThisYear / Math.max(monthsElapsed, 1);
+  const status =
+    remainingToGoal === 0
+      ? "reached"
+      : currentMonthlyAvg >= neededPerMonth
+        ? "onTrack"
+        : "behind";
+
+  return {
+    year,
+    monthsElapsed,
+    monthsRemaining,
+    remainingToGoal,
+    neededPerMonth,
+    currentMonthlyAvg,
+    status,
+  };
 }
 
 /* ---------- toast system ---------- */
@@ -669,6 +713,78 @@ function SummaryCard({ icon: Icon, label, value, sub, accent, delay, badge }) {
         .summary-value { font-size: 26px; font-weight: 800; color: var(--text); letter-spacing: 0; line-height: 1.1; }
         .summary-sub { font-size: 12px; color: var(--text-faint); margin-top: 5px; line-height: 1.4; min-height: 2.8em; }
         @keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
+    </div>
+  );
+}
+
+function MonthlyPaceCard({ pace, t }) {
+  const statusText = {
+    reached: t.monthlyPaceReached,
+    onTrack: t.monthlyPaceOnTrack,
+    behind: t.monthlyPaceBehind,
+  }[pace.status];
+  const hint =
+    pace.status === "reached"
+      ? t.monthlyPaceReachedHint
+      : t.monthlyPaceHint(THB(Math.ceil(pace.neededPerMonth)));
+
+  return (
+    <div className={`pace-card ${pace.status}`}>
+      <div className="pace-head">
+        <div className="pace-icon"><Target size={18} /></div>
+        <div className="pace-copy">
+          <div className="pace-title">{t.monthlyPaceTitle}</div>
+          <div className="pace-sub">{t.monthlyPaceSub(pace.monthsRemaining, pace.year)}</div>
+        </div>
+        <div className="pace-status">{statusText}</div>
+      </div>
+      <div className="pace-metrics">
+        <div className="pace-metric">
+          <span>{t.monthlyPaceNeeded}</span>
+          <strong>฿{THB(Math.ceil(pace.neededPerMonth))}</strong>
+        </div>
+        <div className="pace-metric">
+          <span>{t.monthlyPaceCurrent}</span>
+          <strong>฿{THB(Math.round(pace.currentMonthlyAvg))}</strong>
+        </div>
+      </div>
+      <p>{hint}</p>
+      <style>{`
+        .pace-card {
+          background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+          padding: 18px 20px; box-shadow: var(--shadow-sm);
+        }
+        .pace-head { display: flex; align-items: center; gap: 12px; min-height: 42px; }
+        .pace-icon {
+          width: 36px; height: 36px; border-radius: 10px; background: var(--accent-soft); color: var(--accent);
+          display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .pace-copy { flex: 1; min-width: 0; }
+        .pace-title { font-size: 13.5px; font-weight: 700; color: var(--text); line-height: 1.35; min-height: 18px; }
+        .pace-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; min-height: 17px; }
+        .pace-status {
+          font-size: 11.5px; font-weight: 800; padding: 5px 9px; border-radius: 999px;
+          white-space: nowrap; background: rgba(239,68,68,0.1); color: #EF4444;
+        }
+        .pace-card.onTrack .pace-status,
+        .pace-card.reached .pace-status { background: rgba(34,197,94,0.12); color: var(--accent); }
+        .pace-metrics {
+          display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+          margin-top: 14px;
+        }
+        .pace-metric {
+          background: var(--hover); border-radius: 12px; padding: 12px 14px; min-height: 70px;
+          display: flex; flex-direction: column; justify-content: center;
+        }
+        .pace-metric span { font-size: 11.5px; font-weight: 700; color: var(--text-muted); line-height: 1.35; min-height: 16px; }
+        .pace-metric strong { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1.15; margin-top: 4px; }
+        .pace-card p { margin: 12px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.45; min-height: 18px; }
+        @media (max-width: 560px) {
+          .pace-head { align-items: flex-start; flex-wrap: wrap; }
+          .pace-status { margin-left: 48px; }
+          .pace-metrics { grid-template-columns: 1fr; }
+        }
       `}</style>
     </div>
   );
@@ -1288,6 +1404,7 @@ function DashboardPage({ loading, totalAll, totalThisYear, count, latestDate, an
   const currentYear = new Date().getFullYear();
   const yoy = yoyChange(annual, currentYear);
   const projection = yearEndProjection(deposits, currentYear);
+  const pace = monthlyGoalPace(totalAll, totalThisYear, goal);
 
   return (
     <div className="page-stack">
@@ -1339,6 +1456,8 @@ function DashboardPage({ loading, totalAll, totalThisYear, count, latestDate, an
           `}</style>
         </div>
       )}
+
+      {goal > 0 && <MonthlyPaceCard pace={pace} t={t} />}
 
       {projection.applicable && projection.totalSoFar > 0 && (
         <div className="proj-card">
