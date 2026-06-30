@@ -9,11 +9,12 @@ import {
   XCircle, Info, ChevronLeft, ChevronRight, Download, Upload, Tag, Target,
   Sparkles,
 } from "lucide-react";
+import { storage } from "./storage.js";
 
 /* ----------------------------------------------------------------------
    Dime Investment Tracker
    A premium personal-finance dashboard for tracking Dime app deposits.
-   Data persists across sessions via window.storage (personal, per-user).
+   Data persists across sessions via localStorage (see src/storage.js).
 ------------------------------------------------------------------------- */
 
 const THB = (n) =>
@@ -911,9 +912,9 @@ export default function DimeTracker() {
       let storedDeposits = null;
       let storedGoal = null;
       let storedLang = null;
-      try { storedDeposits = await window.storage.get(STORAGE_KEY, false); } catch {}
-      try { storedGoal = await window.storage.get(GOAL_KEY, false); } catch {}
-      try { storedLang = await window.storage.get(LANG_KEY, false); } catch {}
+      try { storedDeposits = await storage.get(STORAGE_KEY); } catch {}
+      try { storedGoal = await storage.get(GOAL_KEY); } catch {}
+      try { storedLang = await storage.get(LANG_KEY); } catch {}
       if (cancelled) return;
       try {
         if (storedDeposits?.value) {
@@ -940,21 +941,21 @@ export default function DimeTracker() {
   /* ---- persist deposits whenever they change (after initial load completes) ---- */
   useEffect(() => {
     if (loading) return;
-    window.storage.set(STORAGE_KEY, JSON.stringify(deposits), false).catch(() => {
+    storage.set(STORAGE_KEY, JSON.stringify(deposits)).catch(() => {
       push("error", t.toastSaveFail);
     });
   }, [deposits, loading]);
 
   const persistGoal = useCallback((value) => {
     setGoal(value);
-    window.storage.set(GOAL_KEY, String(value), false).catch(() => {
+    storage.set(GOAL_KEY, String(value)).catch(() => {
       push("error", t.toastGoalFail);
     });
   }, [push, t]);
 
   const persistLang = useCallback((value) => {
     setLang(value);
-    window.storage.set(LANG_KEY, value, false).catch(() => {});
+    storage.set(LANG_KEY, value).catch(() => {});
   }, []);
 
   /* derived data */
@@ -1662,8 +1663,7 @@ function SettingsPage({ dark, setDark, goal, setGoal, onExportAll, onImport, t, 
 function GlobalStyles() {
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Prompt:wght@400;500;600;700&display=swap');
-
+      /* Inter & Prompt fonts are preloaded in index.html, not re-imported here */
       .dime-root {
         --accent: #22C55E;
         --accent-dim: rgba(34,197,94,0.28);
