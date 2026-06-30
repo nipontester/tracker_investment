@@ -7,17 +7,17 @@ import {
   Trash2, X, ChevronDown, Sun, Moon, LayoutDashboard, Receipt,
   BarChart3, Settings, Menu, ArrowUpDown, AlertTriangle, CheckCircle2,
   XCircle, Info, ChevronLeft, ChevronRight, Download, Upload, Tag, Target,
-  Sparkles,
+  Sparkles, LogOut,
 } from "lucide-react";
-import { storage } from "./storage.js";
+import { listDeposits, insertDeposit, updateDeposit, deleteDeposit as deleteDepositRow, bulkInsertDeposits, getSettings, upsertSettings } from "./db.js";
 
 /* ----------------------------------------------------------------------
    Dime Investment Tracker
    A premium personal-finance dashboard for tracking Dime app deposits.
-   Data persists across sessions via localStorage (see src/storage.js).
+   Data persists per signed-in user via Supabase (see src/db.js and
+   src/supabaseClient.js). Requires a logged-in user (see src/App.jsx).
 
-   Build marker: 2026-06-30 — includes sidebar nav fixed-height fix,
-   font preload via index.html, hamburger toggle fix (JS-driven isMobile).
+   Build marker: 2026-06-30 — adds Supabase auth/login, per-account data.
 ------------------------------------------------------------------------- */
 
 const THB = (n) =>
@@ -36,10 +36,6 @@ const fmtDate = (iso, lang = "en") => {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-const STORAGE_KEY = "dime:deposits";
-const GOAL_KEY = "dime:goal";
-const LANG_KEY = "dime:lang";
-
 /* ---------- i18n ---------- */
 const DICT = {
   en: {
@@ -51,6 +47,9 @@ const DICT = {
     navSettings: "Settings",
     darkMode: "Dark mode",
     lightMode: "Light mode",
+    logOut: "Log out",
+    confirmSignOutTitle: "Log out?",
+    confirmSignOutMsg: "You'll need to sign in again to see your deposits.",
     welcome: "Welcome back 👋",
     welcomeSub: "Here's how your Dime! investments are growing.",
     addDeposit: "Add deposit",
@@ -99,6 +98,8 @@ const DICT = {
     language: "Language",
     languageDesc: "Choose your preferred display language.",
     currency: "Currency",
+    account: "Account",
+    accountDesc: "You're signed in as",
     currencyDesc: "All amounts are shown in Thai Baht (฿).",
     goalSettingTitle: "Total investment goal",
     goalSettingDesc: "Used to calculate the progress bar on the Dashboard.",
@@ -155,6 +156,9 @@ const DICT = {
     navSettings: "ตั้งค่า",
     darkMode: "โหมดมืด",
     lightMode: "โหมดสว่าง",
+    logOut: "ออกจากระบบ",
+    confirmSignOutTitle: "ออกจากระบบ?",
+    confirmSignOutMsg: "คุณจะต้องเข้าสู่ระบบใหม่เพื่อดูรายการฝากของคุณ",
     welcome: "ยินดีต้อนรับกลับมา 👋",
     welcomeSub: "นี่คือความคืบหน้าการลงทุนใน Dime! ของคุณ",
     addDeposit: "เพิ่มเงินฝาก",
@@ -203,6 +207,8 @@ const DICT = {
     language: "ภาษา",
     languageDesc: "เลือกภาษาที่ใช้แสดงผลในแอป",
     currency: "สกุลเงิน",
+    account: "บัญชี",
+    accountDesc: "คุณเข้าสู่ระบบด้วย",
     currencyDesc: "แสดงจำนวนเงินทั้งหมดเป็นบาทไทย (฿)",
     goalSettingTitle: "เป้าหมายการลงทุนรวม",
     goalSettingDesc: "ใช้คำนวณ progress bar บนหน้า Dashboard",
@@ -269,33 +275,6 @@ const catInfo = (id, lang = "en") => {
 };
 
 /* ---------- seed data ---------- */
-function seedData() {
-  const notes = [
-    "Monthly contribution", "Bonus top-up", "Salary auto-deposit", "Extra savings",
-    "Dividend reinvest", "Year-end boost", "Side income", "", "Round-up savings",
-    "Mid-year top-up",
-  ];
-  const catWeights = ["salary", "salary", "salary", "bonus", "gift", "other"];
-  const rows = [];
-  const years = [2022, 2023, 2024, 2025, 2026];
-  years.forEach((y) => {
-    const count = y === 2026 ? 8 : 10 + Math.floor(Math.random() * 6);
-    for (let i = 0; i < count; i++) {
-      const month = y === 2026 ? Math.floor(Math.random() * 6) : Math.floor(Math.random() * 12);
-      const day = 1 + Math.floor(Math.random() * 27);
-      const amount = Math.round((1500 + Math.random() * 8000) / 50) * 50;
-      rows.push({
-        id: uid(),
-        date: `${y}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
-        amount,
-        note: notes[Math.floor(Math.random() * notes.length)],
-        category: catWeights[Math.floor(Math.random() * catWeights.length)],
-      });
-    }
-  });
-  return rows.sort((a, b) => (a.date < b.date ? 1 : -1));
-}
-
 /* ---------- CSV helpers ---------- */
 function toCSV(rows) {
   const header = ["date", "amount", "category", "note"];
@@ -474,7 +453,7 @@ function ToastStack({ toasts, dismiss }) {
 }
 
 /* ---------- confirmation dialog ---------- */
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, t }) {
+function ConfirmDialog({ open, title, message, onConfirm, onCancel, t, confirmLabel, danger = true }) {
   if (!open) return null;
   return (
     <div className="overlay" onMouseDown={onCancel}>
@@ -484,7 +463,9 @@ function ConfirmDialog({ open, title, message, onConfirm, onCancel, t }) {
         <p>{message}</p>
         <div className="confirm-actions">
           <button className="btn btn-ghost" onClick={onCancel}>{t.cancel}</button>
-          <button className="btn btn-danger" onClick={onConfirm}>{t.delete}</button>
+          <button className={danger ? "btn btn-danger" : "btn btn-primary"} onClick={onConfirm}>
+            {confirmLabel || t.delete}
+          </button>
         </div>
       </div>
       <style>{`
@@ -854,7 +835,7 @@ function Skeleton({ className }) {
 }
 
 /* ---------- main app ---------- */
-export default function DimeTracker() {
+export default function DimeTracker({ user, onSignOut }) {
   const [dark, setDark] = useState(false);
   const [lang, setLang] = useState("en");
   const [loading, setLoading] = useState(true);
@@ -876,6 +857,7 @@ export default function DimeTracker() {
   const [editing, setEditing] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [drillYear, setDrillYear] = useState(null);
+  const [signOutConfirm, setSignOutConfirm] = useState(false);
   const importInputRef = useRef(null);
 
   const MOBILE_BREAKPOINT = 768;
@@ -908,58 +890,47 @@ export default function DimeTracker() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  /* ---- load from persistent storage on mount ---- */
+  /* ---- load this user's deposits + settings from Supabase on mount ---- */
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      let storedDeposits = null;
-      let storedGoal = null;
-      let storedLang = null;
-      try { storedDeposits = await storage.get(STORAGE_KEY); } catch {}
-      try { storedGoal = await storage.get(GOAL_KEY); } catch {}
-      try { storedLang = await storage.get(LANG_KEY); } catch {}
-      if (cancelled) return;
       try {
-        if (storedDeposits?.value) {
-          const parsed = JSON.parse(storedDeposits.value);
-          setDeposits(Array.isArray(parsed) && parsed.length ? parsed : seedData());
-        } else {
-          setDeposits(seedData());
+        const [rows, settings] = await Promise.all([
+          listDeposits(),
+          getSettings(user.id),
+        ]);
+        if (cancelled) return;
+        setDeposits(rows);
+        if (settings) {
+          if (settings.goal > 0) setGoal(Number(settings.goal));
+          if (settings.lang === "th" || settings.lang === "en") setLang(settings.lang);
+          if (typeof settings.dark === "boolean") setDark(settings.dark);
         }
       } catch {
-        setDeposits(seedData());
+        if (!cancelled) push("error", t.toastSaveFail);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      if (storedGoal?.value) {
-        const g = Number(storedGoal.value);
-        if (!isNaN(g) && g > 0) setGoal(g);
-      }
-      if (storedLang?.value === "th" || storedLang?.value === "en") {
-        setLang(storedLang.value);
-      }
-      setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
-
-  /* ---- persist deposits whenever they change (after initial load completes) ---- */
-  useEffect(() => {
-    if (loading) return;
-    storage.set(STORAGE_KEY, JSON.stringify(deposits)).catch(() => {
-      push("error", t.toastSaveFail);
-    });
-  }, [deposits, loading]);
+  }, [user.id]);
 
   const persistGoal = useCallback((value) => {
     setGoal(value);
-    storage.set(GOAL_KEY, String(value)).catch(() => {
+    upsertSettings(user.id, { goal: value }).catch(() => {
       push("error", t.toastGoalFail);
     });
-  }, [push, t]);
+  }, [push, t, user.id]);
 
   const persistLang = useCallback((value) => {
     setLang(value);
-    storage.set(LANG_KEY, value).catch(() => {});
-  }, []);
+    upsertSettings(user.id, { lang: value }).catch(() => {});
+  }, [user.id]);
+
+  const persistDark = useCallback((value) => {
+    setDark(value);
+    upsertSettings(user.id, { dark: value }).catch(() => {});
+  }, [user.id]);
 
   /* derived data */
   const years = useMemo(() => {
@@ -1015,20 +986,35 @@ export default function DimeTracker() {
   useEffect(() => setPageNum(1), [search, yearFilter, categoryFilter, sortDir]);
 
   /* actions */
-  const saveDeposit = (dep) => {
+  const saveDeposit = async (dep) => {
     const exists = deposits.some((d) => d.id === dep.id);
-    setDeposits((prev) =>
-      exists ? prev.map((d) => (d.id === dep.id ? dep : d)) : [dep, ...prev]
-    );
-    setModalOpen(false);
-    setEditing(null);
-    push("success", exists ? t.toastUpdated : t.toastAdded(THB(dep.amount)));
+    try {
+      if (exists) {
+        const saved = await updateDeposit(dep);
+        setDeposits((prev) => prev.map((d) => (d.id === saved.id ? saved : d)));
+      } else {
+        const saved = await insertDeposit(user.id, dep);
+        setDeposits((prev) => [saved, ...prev]);
+      }
+      setModalOpen(false);
+      setEditing(null);
+      push("success", exists ? t.toastUpdated : t.toastAdded(THB(dep.amount)));
+    } catch {
+      push("error", t.toastSaveFail);
+    }
   };
 
-  const deleteDeposit = (id) => {
+  const deleteDeposit = async (id) => {
+    const prevDeposits = deposits;
     setDeposits((prev) => prev.filter((d) => d.id !== id));
     setConfirmId(null);
-    push("success", t.toastDeleted);
+    try {
+      await deleteDepositRow(id);
+      push("success", t.toastDeleted);
+    } catch {
+      setDeposits(prevDeposits);
+      push("error", t.toastSaveFail);
+    }
   };
 
   const openAdd = () => { setEditing(null); setModalOpen(true); };
@@ -1048,11 +1034,16 @@ export default function DimeTracker() {
     e.target.value = "";
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const { rows, errors } = parseCSV(String(reader.result || ""), t);
       if (rows.length) {
-        setDeposits((prev) => [...rows, ...prev]);
-        push("success", t.toastImportOk(rows.length));
+        try {
+          const saved = await bulkInsertDeposits(user.id, rows);
+          setDeposits((prev) => [...saved, ...prev]);
+          push("success", t.toastImportOk(saved.length));
+        } catch {
+          push("error", t.toastSaveFail);
+        }
       }
       if (errors.length) {
         push("error", t.toastImportSkip(errors.length, errors[0]));
@@ -1073,6 +1064,16 @@ export default function DimeTracker() {
         message={t.confirmDeleteMsg}
         onConfirm={() => deleteDeposit(confirmId)}
         onCancel={() => setConfirmId(null)}
+        t={t}
+      />
+      <ConfirmDialog
+        open={signOutConfirm}
+        title={t.confirmSignOutTitle}
+        message={t.confirmSignOutMsg}
+        onConfirm={() => { setSignOutConfirm(false); onSignOut?.(); }}
+        onCancel={() => setSignOutConfirm(false)}
+        confirmLabel={t.logOut}
+        danger={false}
         t={t}
       />
       <DepositModal
@@ -1146,10 +1147,14 @@ export default function DimeTracker() {
             })}
           </nav>
           <div className="sidebar-foot">
-            <button className="dark-toggle" onClick={() => setDark((d) => !d)}>
+            <button className="dark-toggle" onClick={() => persistDark(!dark)}>
               <span className="dt-icon">{dark ? <Moon size={15} /> : <Sun size={15} />}</span>
               <span>{dark ? t.darkMode : t.lightMode}</span>
               <span className={`dt-switch ${dark ? "on" : ""}`}><span className="dt-knob" /></span>
+            </button>
+            <button className="logout-btn" onClick={() => setSignOutConfirm(true)}>
+              <LogOut size={15} />
+              <span>{t.logOut}</span>
             </button>
           </div>
         </aside>
@@ -1177,7 +1182,7 @@ export default function DimeTracker() {
                 <button className={lang === "th" ? "active" : ""} onClick={() => persistLang("th")}>ไทย</button>
               </div>
               {!isMobile && (
-                <button className="icon-btn" onClick={() => setDark((d) => !d)} aria-label="Toggle dark mode">
+                <button className="icon-btn" onClick={() => persistDark(!dark)} aria-label="Toggle dark mode">
                   {dark ? <Sun size={18} /> : <Moon size={18} />}
                 </button>
               )}
@@ -1240,7 +1245,7 @@ export default function DimeTracker() {
             {page === "settings" && (
               <SettingsPage
                 dark={dark}
-                setDark={setDark}
+                setDark={persistDark}
                 goal={goal}
                 setGoal={persistGoal}
                 onExportAll={() => handleExport(deposits)}
@@ -1248,6 +1253,8 @@ export default function DimeTracker() {
                 t={t}
                 lang={lang}
                 setLang={persistLang}
+                user={user}
+                onSignOut={() => setSignOutConfirm(true)}
               />
             )}
           </main>
@@ -1575,7 +1582,7 @@ function AnnualPage({ loading, annualDesc, totalAll, onDrillYear, t }) {
 }
 
 /* ---------- Settings page ---------- */
-function SettingsPage({ dark, setDark, goal, setGoal, onExportAll, onImport, t, lang, setLang }) {
+function SettingsPage({ dark, setDark, goal, setGoal, onExportAll, onImport, t, lang, setLang, user, onSignOut }) {
   const [goalInput, setGoalInput] = useState(String(goal));
 
   useEffect(() => setGoalInput(String(goal)), [goal]);
@@ -1592,13 +1599,26 @@ function SettingsPage({ dark, setDark, goal, setGoal, onExportAll, onImport, t, 
         <h1 className="page-h1">{t.settings}</h1>
         <p className="page-sub">{t.settingsSub}</p>
       </div>
+
+      <div className="table-card" style={{ padding: 22 }}>
+        <div className="settings-row">
+          <div>
+            <div className="settings-title">{t.account}</div>
+            <div className="settings-desc">{t.accountDesc} {user?.email}</div>
+          </div>
+          <button className="btn btn-ghost" onClick={onSignOut}>
+            <LogOut size={15} /> {t.logOut}
+          </button>
+        </div>
+      </div>
+
       <div className="table-card" style={{ padding: 22 }}>
         <div className="settings-row">
           <div>
             <div className="settings-title">{t.appearance}</div>
             <div className="settings-desc">{t.appearanceDesc}</div>
           </div>
-          <button className="dark-toggle compact" onClick={() => setDark((d) => !d)}>
+          <button className="dark-toggle compact" onClick={() => setDark(!dark)}>
             <span className="dt-icon">{dark ? <Moon size={15} /> : <Sun size={15} />}</span>
             <span className={`dt-switch ${dark ? "on" : ""}`}><span className="dt-knob" /></span>
           </button>
@@ -1735,7 +1755,7 @@ function GlobalStyles() {
       .nav-item:hover { background: var(--hover); color: var(--text); }
       .nav-item.active { background: var(--accent-soft); color: var(--accent); }
       .nav-item span:first-of-type { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-      .sidebar-foot { padding-top: 12px; border-top: 1px solid var(--border); }
+      .sidebar-foot { padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
       .lang-switch {
         display: flex; background: var(--hover); border: 1px solid var(--border); border-radius: 10px;
         padding: 2px; gap: 2px;
@@ -1767,6 +1787,13 @@ function GlobalStyles() {
         background: #fff; transition: transform 0.2s cubic-bezier(.2,.8,.2,1); box-shadow: 0 1px 2px rgba(0,0,0,0.2);
       }
       .dt-switch.on .dt-knob { transform: translateX(14px); }
+      .logout-btn {
+        display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px;
+        background: none; border: 1px solid transparent; border-radius: 10px;
+        cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--text-muted);
+        white-space: nowrap; box-sizing: border-box; transition: background 0.15s, color 0.15s;
+      }
+      .logout-btn:hover { background: rgba(239,68,68,0.08); color: #EF4444; }
 
       .sidebar-overlay { display: none; }
 
