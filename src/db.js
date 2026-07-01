@@ -1,6 +1,7 @@
 import { requireSupabase } from "./supabaseClient.js";
 
 const DEFAULT_GOAL_YEARS = 5;
+const DEPOSIT_COLUMNS = "id, date, amount, category, note, created_at";
 const SETTINGS_COLUMNS = "goal, lang, dark, goal_years, goal_started_at";
 const LEGACY_SETTINGS_COLUMNS = "goal, lang, dark";
 
@@ -40,8 +41,9 @@ function withSettingsDefaults(data) {
 export async function listDeposits() {
   const { data, error } = await requireSupabase()
     .from("deposits")
-    .select("id, date, amount, category, note")
-    .order("date", { ascending: false });
+    .select(DEPOSIT_COLUMNS)
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
 }
@@ -56,7 +58,7 @@ export async function insertDeposit(userId, deposit) {
       category: deposit.category,
       note: deposit.note ?? "",
     })
-    .select("id, date, amount, category, note")
+    .select(DEPOSIT_COLUMNS)
     .single();
   if (error) throw error;
   return data;
@@ -72,7 +74,7 @@ export async function updateDeposit(deposit) {
       note: deposit.note ?? "",
     })
     .eq("id", deposit.id)
-    .select("id, date, amount, category, note")
+    .select(DEPOSIT_COLUMNS)
     .single();
   if (error) throw error;
   return data;
@@ -95,7 +97,7 @@ export async function bulkInsertDeposits(userId, deposits) {
   const { data, error } = await requireSupabase()
     .from("deposits")
     .insert(rows)
-    .select("id, date, amount, category, note");
+    .select(DEPOSIT_COLUMNS);
   if (error) throw error;
   return data ?? [];
 }

@@ -452,6 +452,23 @@ function yoyChange(annual, year) {
   return ((curr - prev) / prev) * 100;
 }
 
+function compareDeposits(a, b, direction = "newest") {
+  const dateCompare = String(a.date || "").localeCompare(String(b.date || ""));
+  if (dateCompare !== 0) return direction === "newest" ? -dateCompare : dateCompare;
+
+  const createdCompare = String(a.created_at || "").localeCompare(String(b.created_at || ""));
+  if (createdCompare !== 0) return direction === "newest" ? -createdCompare : createdCompare;
+
+  const localCompare = Number(a._local_order || 0) - Number(b._local_order || 0);
+  if (localCompare !== 0) return direction === "newest" ? -localCompare : localCompare;
+
+  return String(a.id || "").localeCompare(String(b.id || ""));
+}
+
+function sortDeposits(rows, direction = "newest") {
+  return [...rows].sort((a, b) => compareDeposits(a, b, direction));
+}
+
 function monthlyGoalPace(deposits, totalAll, goal, goalYears, goalStartedAt) {
   const years = normalizeGoalYears(goalYears);
   const startedAt = isISODate(goalStartedAt) ? goalStartedAt : todayISO();
@@ -1052,6 +1069,7 @@ export default function DimeTracker({ user, onSignOut }) {
   const [drillYear, setDrillYear] = useState(null);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
   const importInputRef = useRef(null);
+  const depositOrderRef = useRef(0);
 
   const MOBILE_BREAKPOINT = 768;
   const [isMobile, setIsMobile] = useState(
@@ -1093,7 +1111,7 @@ export default function DimeTracker({ user, onSignOut }) {
           getSettings(user.id),
         ]);
         if (cancelled) return;
-        setDeposits(rows);
+        setDeposits(sortDeposits(rows, "newest"));
         if (settings) {
           if (settings.goal > 0) setGoal(Number(settings.goal));
           setGoalYears(normalizeGoalYears(settings.goal_years));
@@ -1186,7 +1204,7 @@ export default function DimeTracker({ user, onSignOut }) {
           catInfo(d.category, lang).label.toLowerCase().includes(q)
       );
     }
-    rows.sort((a, b) => (sortDir === "newest" ? (a.date < b.date ? 1 : -1) : a.date > b.date ? 1 : -1));
+    rows = sortDeposits(rows, sortDir);
     return rows;
   }, [deposits, yearFilter, categoryFilter, search, sortDir, lang]);
 
@@ -1201,10 +1219,16 @@ export default function DimeTracker({ user, onSignOut }) {
     try {
       if (exists) {
         const saved = await updateDeposit(dep);
-        setDeposits((prev) => prev.map((d) => (d.id === saved.id ? saved : d)));
+        setDeposits((prev) =>
+          sortDeposits(
+            prev.map((d) => (d.id === saved.id ? { ...saved, _local_order: d._local_order || 0 } : d)),
+            sortDir
+          )
+        );
       } else {
         const saved = await insertDeposit(user.id, dep);
-        setDeposits((prev) => [saved, ...prev]);
+        const ordered = { ...saved, _local_order: ++depositOrderRef.current };
+        setDeposits((prev) => sortDeposits([ordered, ...prev], sortDir));
       }
       setModalOpen(false);
       setEditing(null);
@@ -1249,7 +1273,8 @@ export default function DimeTracker({ user, onSignOut }) {
       if (rows.length) {
         try {
           const saved = await bulkInsertDeposits(user.id, rows);
-          setDeposits((prev) => [...saved, ...prev]);
+          const ordered = saved.map((row) => ({ ...row, _local_order: ++depositOrderRef.current }));
+          setDeposits((prev) => sortDeposits([...ordered, ...prev], sortDir));
           push("success", t.toastImportOk(saved.length));
         } catch {
           push("error", t.toastSaveFail);
