@@ -130,9 +130,8 @@ const DICT = {
     currencyDesc: "All amounts are shown in Thai Baht (฿).",
     goalSettingTitle: "Total investment goal",
     goalSettingDesc: "Used to calculate progress and monthly pace on the Dashboard.",
-    goalYearsSettingTitle: "Target timeline",
-    goalYearsSettingDesc: "How many years you want to reach the total investment goal.",
-    goalYearsUnit: "years",
+    goalDeadlineSettingTitle: "Goal end date",
+    goalDeadlineSettingDesc: "Choose when you want to reach your total investment goal.",
     dataBackupTitle: "Data & backup",
     dataBackupDesc: "Export every record to CSV, or import from a CSV file.",
     importBtn: "Import",
@@ -172,8 +171,7 @@ const DICT = {
     projectionPace: (amt) => `~฿${amt} / month average`,
     projectionNote: "Estimate only — actual results may vary.",
     monthlyPaceTitle: "Monthly goal pace",
-    monthlyPaceSub: (years, months) =>
-      `Target in ${years} year${years === 1 ? "" : "s"} · ${months} month${months === 1 ? "" : "s"} left`,
+    monthlyPaceSub: (date, months) => `Ends on ${date} · ${months} month${months === 1 ? "" : "s"} left`,
     monthlyPacePastSub: (date) => `Target date passed on ${date}`,
     monthlyPaceNeeded: "Needed / month",
     monthlyPaceCurrent: "Avg since start",
@@ -256,9 +254,8 @@ const DICT = {
     currencyDesc: "แสดงจำนวนเงินทั้งหมดเป็นบาทไทย (฿)",
     goalSettingTitle: "เป้าหมายการลงทุนรวม",
     goalSettingDesc: "ใช้คำนวณ progress bar และจังหวะฝากบนหน้า Dashboard",
-    goalYearsSettingTitle: "เป้าหมายภายในกี่ปี",
-    goalYearsSettingDesc: "จำนวนปีที่ให้ตัวเองเพื่อไปถึงเป้าการลงทุนรวม",
-    goalYearsUnit: "ปี",
+    goalDeadlineSettingTitle: "วันสิ้นสุดเป้าหมาย",
+    goalDeadlineSettingDesc: "เลือกวันที่อยากไปถึงเป้าการลงทุนรวม",
     dataBackupTitle: "ข้อมูลและการสำรองข้อมูล",
     dataBackupDesc: "Export ทุกรายการเป็น CSV หรือ Import จากไฟล์ CSV",
     importBtn: "Import",
@@ -298,7 +295,7 @@ const DICT = {
     projectionPace: (amt) => `เฉลี่ย ~฿${amt} / เดือน`,
     projectionNote: "เป็นการประมาณการเท่านั้น ผลจริงอาจแตกต่างไป",
     monthlyPaceTitle: "จังหวะฝากรายเดือน",
-    monthlyPaceSub: (years, months) => `เป้าภายใน ${years} ปี · เหลือ ${months} เดือน`,
+    monthlyPaceSub: (date, months) => `สิ้นสุดวันที่ ${date} · เหลือ ${months} เดือน`,
     monthlyPacePastSub: (date) => `เลยกำหนดเมื่อ ${date}`,
     monthlyPaceNeeded: "ต้องฝาก / เดือน",
     monthlyPaceCurrent: "เฉลี่ยตั้งแต่เริ่มเป้า",
@@ -307,7 +304,7 @@ const DICT = {
     monthlyPaceBehind: "ต่ำกว่าเป้า",
     monthlyPacePastDue: "เลยกำหนดแล้ว",
     monthlyPaceReachedHint: "ยอดรวมถึงเป้าการลงทุนแล้ว",
-    monthlyPacePastHint: (amt) => `เลยกำหนดแล้วและยังเหลือ ฿${amt} ปรับจำนวนปีในตั้งค่าเพื่อวางแผนใหม่`,
+    monthlyPacePastHint: (amt) => `เลยกำหนดแล้วและยังเหลือ ฿${amt} ปรับวันสิ้นสุดในตั้งค่าเพื่อวางแผนใหม่`,
     monthlyPaceNoDataHint: "ยังไม่มีรายการฝากหลังวันที่ตั้งเป้านี้",
     monthlyPaceHint: (amt) => `รักษาระดับประมาณ ฿${amt} ต่อเดือนเพื่อให้ถึงเป้า`,
     monthlyTitle: (year) => `รายละเอียดรายเดือน · ${year}`,
@@ -469,18 +466,18 @@ function sortDeposits(rows, direction = "newest") {
   return [...rows].sort((a, b) => compareDeposits(a, b, direction));
 }
 
-function monthlyGoalPace(deposits, totalAll, goal, goalYears, goalStartedAt) {
-  const years = normalizeGoalYears(goalYears);
+function monthlyGoalPace(deposits, totalAll, goal, goalDeadline, goalStartedAt) {
   const startedAt = isISODate(goalStartedAt) ? goalStartedAt : todayISO();
-  const deadlineISO = addYearsISO(startedAt, years);
+  const deadlineISO = isISODate(goalDeadline) ? goalDeadline : addYearsISO(startedAt, DEFAULT_GOAL_YEARS);
   const today = dateFromISO(todayISO());
   const startDate = dateFromISO(startedAt);
   const deadlineDate = dateFromISO(deadlineISO);
   const daysElapsed = Math.max(Math.ceil((today - startDate) / MS_PER_DAY), 0);
   const daysRemaining = Math.ceil((deadlineDate - today) / MS_PER_DAY);
+  const isPastDeadline = deadlineDate < today;
   const monthsElapsed = Math.max(Math.ceil(daysElapsed / AVG_DAYS_PER_MONTH), 1);
-  const monthsRemaining = daysRemaining > 0
-    ? Math.max(Math.ceil(daysRemaining / AVG_DAYS_PER_MONTH), 1)
+  const monthsRemaining = !isPastDeadline
+    ? Math.max(Math.ceil(Math.max(daysRemaining, 0) / AVG_DAYS_PER_MONTH), 1)
     : 0;
   const totalSinceStart = deposits
     .filter((d) => d.date >= startedAt)
@@ -496,14 +493,13 @@ function monthlyGoalPace(deposits, totalAll, goal, goalYears, goalStartedAt) {
   const status =
     remainingToGoal === 0
       ? "reached"
-      : daysRemaining < 0
+      : isPastDeadline
         ? "pastDue"
         : currentMonthlyAvg >= neededPerMonth
           ? "onTrack"
           : "behind";
 
   return {
-    goalYears: years,
     goalStartedAt: startedAt,
     deadlineISO,
     monthsElapsed,
@@ -816,7 +812,7 @@ function MonthlyPaceCard({ pace, t, lang }) {
           : t.monthlyPaceHint(THB(Math.ceil(pace.neededPerMonth)));
   const subtitle = pace.status === "pastDue"
     ? t.monthlyPacePastSub(deadline)
-    : t.monthlyPaceSub(pace.goalYears, pace.monthsRemaining, deadline);
+    : t.monthlyPaceSub(deadline, pace.monthsRemaining);
 
   return (
     <div className={`pace-card ${pace.status}`}>
@@ -1049,7 +1045,7 @@ export default function DimeTracker({ user, onSignOut }) {
   const [loading, setLoading] = useState(true);
   const [deposits, setDeposits] = useState([]);
   const [goal, setGoal] = useState(1000000);
-  const [goalYears, setGoalYears] = useState(DEFAULT_GOAL_YEARS);
+  const [goalDeadline, setGoalDeadline] = useState(addYearsISO(todayISO(), DEFAULT_GOAL_YEARS));
   const [goalStartedAt, setGoalStartedAt] = useState(todayISO());
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1114,8 +1110,8 @@ export default function DimeTracker({ user, onSignOut }) {
         setDeposits(sortDeposits(rows, "newest"));
         if (settings) {
           if (settings.goal > 0) setGoal(Number(settings.goal));
-          setGoalYears(normalizeGoalYears(settings.goal_years));
           if (isISODate(settings.goal_started_at)) setGoalStartedAt(settings.goal_started_at);
+          if (isISODate(settings.goal_deadline)) setGoalDeadline(settings.goal_deadline);
           if (settings.lang === "th" || settings.lang === "en") setLang(settings.lang);
           if (typeof settings.dark === "boolean") setDark(settings.dark);
         }
@@ -1138,17 +1134,15 @@ export default function DimeTracker({ user, onSignOut }) {
     });
   }, [goalStartedAt, push, t, user.id]);
 
-  const persistGoalYears = useCallback((value) => {
-    const years = normalizeGoalYears(value, goalYears);
-    const startedAt = todayISO();
-    setGoalYears(years);
-    setGoalStartedAt(startedAt);
-    upsertSettings(user.id, { goal_years: years, goal_started_at: startedAt }).catch(() => {
-      setGoalYears((current) => (current === years ? goalYears : current));
-      setGoalStartedAt((current) => (current === startedAt ? goalStartedAt : current));
+  const persistGoalDeadline = useCallback((value) => {
+    if (!isISODate(value)) return;
+    const previous = goalDeadline;
+    setGoalDeadline(value);
+    upsertSettings(user.id, { goal_deadline: value }).catch(() => {
+      setGoalDeadline((current) => (current === value ? previous : current));
       push("error", t.toastGoalFail);
     });
-  }, [goalStartedAt, goalYears, push, t, user.id]);
+  }, [goalDeadline, push, t, user.id]);
 
   const persistLang = useCallback((value) => {
     setLang(value);
@@ -1436,7 +1430,7 @@ export default function DimeTracker({ user, onSignOut }) {
                 deposits={deposits}
                 dark={dark}
                 goal={goal}
-                goalYears={goalYears}
+                goalDeadline={goalDeadline}
                 goalStartedAt={goalStartedAt}
                 onAdd={openAdd}
                 onDrillYear={setDrillYear}
@@ -1485,8 +1479,8 @@ export default function DimeTracker({ user, onSignOut }) {
                 setDark={persistDark}
                 goal={goal}
                 setGoal={persistGoal}
-                goalYears={goalYears}
-                setGoalYears={persistGoalYears}
+                goalDeadline={goalDeadline}
+                setGoalDeadline={persistGoalDeadline}
                 onExportAll={() => handleExport(deposits)}
                 onImport={triggerImport}
                 t={t}
@@ -1509,7 +1503,7 @@ export default function DimeTracker({ user, onSignOut }) {
 /* ---------- Dashboard page ---------- */
 function DashboardPage({
   loading, totalAll, totalThisYear, count, latestDate, annual, deposits, dark,
-  goal, goalYears, goalStartedAt, onAdd, onDrillYear, t, lang,
+  goal, goalDeadline, goalStartedAt, onAdd, onDrillYear, t, lang,
 }) {
   if (loading) {
     return (
@@ -1528,7 +1522,7 @@ function DashboardPage({
   const currentYear = new Date().getFullYear();
   const yoy = yoyChange(annual, currentYear);
   const projection = yearEndProjection(deposits, currentYear);
-  const pace = monthlyGoalPace(deposits, totalAll, goal, goalYears, goalStartedAt);
+  const pace = monthlyGoalPace(deposits, totalAll, goal, goalDeadline, goalStartedAt);
 
   return (
     <div className="page-stack">
@@ -1828,14 +1822,14 @@ function AnnualPage({ loading, annualDesc, totalAll, onDrillYear, t }) {
 
 /* ---------- Settings page ---------- */
 function SettingsPage({
-  dark, setDark, goal, setGoal, goalYears, setGoalYears,
+  dark, setDark, goal, setGoal, goalDeadline, setGoalDeadline,
   onExportAll, onImport, t, lang, setLang, user, onSignOut,
 }) {
   const [goalInput, setGoalInput] = useState(String(goal));
-  const [goalYearsInput, setGoalYearsInput] = useState(String(goalYears));
+  const [goalDeadlineInput, setGoalDeadlineInput] = useState(goalDeadline);
 
   useEffect(() => setGoalInput(String(goal)), [goal]);
-  useEffect(() => setGoalYearsInput(String(goalYears)), [goalYears]);
+  useEffect(() => setGoalDeadlineInput(goalDeadline), [goalDeadline]);
 
   const commitGoal = () => {
     const num = Number(goalInput);
@@ -1847,14 +1841,11 @@ function SettingsPage({
     }
   };
 
-  const commitGoalYears = () => {
-    const num = Number(goalYearsInput);
-    if (Number.isFinite(num) && num > 0) {
-      const years = normalizeGoalYears(num, goalYears);
-      if (years !== goalYears) setGoalYears(years);
-      setGoalYearsInput(String(years));
+  const commitGoalDeadline = () => {
+    if (isISODate(goalDeadlineInput) && goalDeadlineInput >= todayISO()) {
+      if (goalDeadlineInput !== goalDeadline) setGoalDeadline(goalDeadlineInput);
     } else {
-      setGoalYearsInput(String(goalYears));
+      setGoalDeadlineInput(goalDeadline);
     }
   };
 
@@ -1924,21 +1915,18 @@ function SettingsPage({
         </div>
         <div className="settings-row">
           <div>
-            <div className="settings-title">{t.goalYearsSettingTitle}</div>
-            <div className="settings-desc">{t.goalYearsSettingDesc}</div>
+            <div className="settings-title">{t.goalDeadlineSettingTitle}</div>
+            <div className="settings-desc">{t.goalDeadlineSettingDesc}</div>
           </div>
-          <div className="goal-input-wrap years-input-wrap">
+          <div className="goal-input-wrap deadline-input-wrap">
             <input
-              type="number"
-              min={MIN_GOAL_YEARS}
-              max={MAX_GOAL_YEARS}
-              step="1"
-              value={goalYearsInput}
-              onChange={(e) => setGoalYearsInput(e.target.value)}
-              onBlur={commitGoalYears}
-              onKeyDown={(e) => e.key === "Enter" && commitGoalYears()}
+              type="date"
+              min={todayISO()}
+              value={goalDeadlineInput}
+              onChange={(e) => setGoalDeadlineInput(e.target.value)}
+              onBlur={commitGoalDeadline}
+              onKeyDown={(e) => e.key === "Enter" && commitGoalDeadline()}
             />
-            <span>{t.goalYearsUnit}</span>
           </div>
         </div>
       </div>
@@ -1964,7 +1952,7 @@ function SettingsPage({
         .goal-input-wrap { display: flex; align-items: center; gap: 6px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 10px; padding: 0 10px; height: 36px; }
         .goal-input-wrap span { font-size: 13px; color: var(--text-muted); font-weight: 700; }
         .goal-input-wrap input { border: none; background: none; outline: none; font-size: 13.5px; color: var(--text); width: 110px; font-family: inherit; }
-        .years-input-wrap input { width: 52px; text-align: right; }
+        .deadline-input-wrap input { width: 132px; }
       `}</style>
     </div>
   );

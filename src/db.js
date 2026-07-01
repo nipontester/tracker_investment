@@ -2,7 +2,8 @@ import { requireSupabase } from "./supabaseClient.js";
 
 const DEFAULT_GOAL_YEARS = 5;
 const DEPOSIT_COLUMNS = "id, date, amount, category, note, created_at";
-const SETTINGS_COLUMNS = "goal, lang, dark, goal_years, goal_started_at";
+const SETTINGS_COLUMNS = "goal, lang, dark, goal_years, goal_started_at, goal_deadline";
+const TIMELINE_SETTINGS_COLUMNS = "goal, lang, dark, goal_years, goal_started_at";
 const LEGACY_SETTINGS_COLUMNS = "goal, lang, dark";
 
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -10,18 +11,37 @@ const todayISO = () => {
   const date = new Date();
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 };
+const isISODate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+const dateFromISO = (iso) => {
+  const safe = isISODate(iso) ? iso : todayISO();
+  const [year, month, day] = safe.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+const normalizeGoalYears = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return DEFAULT_GOAL_YEARS;
+  return Math.min(50, Math.max(1, Math.round(num)));
+};
+const addYearsISO = (iso, years) => {
+  const date = dateFromISO(iso);
+  date.setFullYear(date.getFullYear() + normalizeGoalYears(years));
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+};
 
 function settingsColumnMissing(error) {
   const text = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`;
-  return text.includes("goal_years") || text.includes("goal_started_at");
+  return text.includes("goal_years") || text.includes("goal_started_at") || text.includes("goal_deadline");
 }
 
 function withSettingsDefaults(data) {
   if (!data) return null;
+  const goalStartedAt = isISODate(data.goal_started_at) ? data.goal_started_at : todayISO();
+  const goalYears = normalizeGoalYears(data.goal_years);
   return {
-    goal_years: DEFAULT_GOAL_YEARS,
-    goal_started_at: todayISO(),
     ...data,
+    goal_years: goalYears,
+    goal_started_at: goalStartedAt,
+    goal_deadline: isISODate(data.goal_deadline) ? data.goal_deadline : addYearsISO(goalStartedAt, goalYears),
   };
 }
 
@@ -117,6 +137,13 @@ export async function getSettings(userId) {
 
   // Lets older projects keep loading until supabase-schema.sql is re-run.
   if (!settingsColumnMissing(error)) throw error;
+
+  const timeline = await client
+    .from("user_settings")
+    .select(TIMELINE_SETTINGS_COLUMNS)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!timeline.error) return withSettingsDefaults(timeline.data);
 
   const legacy = await client
     .from("user_settings")

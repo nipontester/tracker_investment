@@ -24,7 +24,7 @@ This app needs a (free) Supabase project to handle login and store data.
    VITE_SUPABASE_URL=https://your-project-ref.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-public-key
    ```
-4. In your Supabase project, go to the **SQL Editor**, paste in the entire contents of `supabase-schema.sql` (included in this folder), and run it. This creates the `deposits` and `user_settings` tables along with Row Level Security policies, so each signed-in user can only ever see or edit their own rows -- enforced at the database level, not just in the app. If you already ran an older version of the schema, run this file again to add the target-year settings (`goal_years`, `goal_started_at`) safely.
+4. In your Supabase project, go to the **SQL Editor**, paste in the entire contents of `supabase-schema.sql` (included in this folder), and run it. This creates the `deposits` and `user_settings` tables along with Row Level Security policies, so each signed-in user can only ever see or edit their own rows -- enforced at the database level, not just in the app. If you already ran an older version of the schema, run this file again to add goal timeline settings (`goal_started_at`, `goal_deadline`) safely.
 5. In **Authentication -> URL Configuration**, set your production **Site URL** (for example `https://trackerinvestment.netlify.app`) and add it to **Redirect URLs**. This is required for forgot-password reset links to return users to the app. For this project, include both production and local development URLs:
    ```
    https://trackerinvestment.netlify.app
@@ -87,6 +87,6 @@ npm run preview
 ## Notes
 
 - Each account's data is completely isolated from every other account, enforced by Postgres Row Level Security -- not just hidden in the UI.
-- Monthly pace uses `user_settings.goal`, `goal_years`, and `goal_started_at`. Changing the goal amount or target years starts a new target timeline from today.
+- Monthly pace uses `user_settings.goal`, `goal_started_at`, and `goal_deadline`. Changing the goal amount starts a new target timeline from today; changing only the end date keeps the original start date.
 - Forgot-password reset emails are handled by Supabase Auth. The production URL must be allowed in Supabase redirect settings, and expired links must be replaced by requesting a fresh reset email.
 - The anon Supabase key is meant to be public (it ships in the browser bundle) -- never put your Supabase **service role** key in this project.
