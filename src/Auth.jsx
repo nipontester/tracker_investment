@@ -29,6 +29,7 @@ const COPY = {
     checkEmail: "Check your email to confirm your account, then sign in.",
     resetEmailSent: "Check your email for a password reset link.",
     resetSuccess: "Password updated. Please sign in with your new password.",
+    resetLinkExpired: "That reset link is invalid or has expired. Request a new link and open the latest email only once.",
     passwordMismatch: "Passwords don't match.",
     passwordTooShort: "Password must be at least 6 characters.",
     genericError: "Something went wrong. Please try again.",
@@ -59,6 +60,7 @@ const COPY = {
     checkEmail: "ตรวจสอบอีเมลของคุณเพื่อยืนยันบัญชี แล้วเข้าสู่ระบบอีกครั้ง",
     resetEmailSent: "ตรวจสอบอีเมลของคุณสำหรับลิงก์ตั้งรหัสผ่านใหม่",
     resetSuccess: "เปลี่ยนรหัสผ่านแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่",
+    resetLinkExpired: "ลิงก์ตั้งรหัสผ่านไม่ถูกต้องหรือหมดอายุแล้ว กรุณาขอลิงก์ใหม่และเปิดอีเมลล่าสุดเพียงครั้งเดียว",
     passwordMismatch: "รหัสผ่านทั้งสองช่องไม่ตรงกัน",
     passwordTooShort: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร",
     genericError: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
@@ -69,6 +71,11 @@ const browserLang =
   typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("th")
     ? "th"
     : "en";
+
+const getAuthRedirectTo = () => {
+  if (typeof window === "undefined") return undefined;
+  return `${window.location.origin}/`;
+};
 
 export default function Auth({
   lang = browserLang,
@@ -98,6 +105,18 @@ export default function Auth({
     setInfo(initialInfo);
     onInfoConsumed?.();
   }, [initialInfo, onInfoConsumed]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.location.hash.includes("error=")) return;
+
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const errorCode = params.get("error_code");
+    const errorDescription = params.get("error_description");
+    setMode("forgot");
+    setInfo("");
+    setError(errorCode === "otp_expired" ? t.resetLinkExpired : errorDescription || t.genericError);
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }, [t]);
 
   const switchMode = (nextMode) => {
     setMode(nextMode);
@@ -134,8 +153,9 @@ export default function Auth({
         if (error) throw error;
         setInfo(t.checkEmail);
       } else if (mode === "forgot") {
-        const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
-        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: getAuthRedirectTo(),
+        });
         if (error) throw error;
         setInfo(t.resetEmailSent);
       } else if (mode === "reset") {

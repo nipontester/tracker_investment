@@ -25,8 +25,18 @@ This app needs a (free) Supabase project to handle login and store data.
    VITE_SUPABASE_ANON_KEY=your-anon-public-key
    ```
 4. In your Supabase project, go to the **SQL Editor**, paste in the entire contents of `supabase-schema.sql` (included in this folder), and run it. This creates the `deposits` and `user_settings` tables along with Row Level Security policies, so each signed-in user can only ever see or edit their own rows -- enforced at the database level, not just in the app. If you already ran an older version of the schema, run this file again to add the target-year settings (`goal_years`, `goal_started_at`) safely.
-5. In **Authentication -> URL Configuration**, set your production **Site URL** (for example `https://trackerinvestment.netlify.app`) and add it to **Redirect URLs**. This is required for forgot-password reset links to return users to the app.
-6. (Optional but recommended for testing) In **Authentication -> Providers -> Email**, you can turn off "Confirm email" while developing, so new signups can log in immediately without clicking a confirmation link. Turn it back on before sharing the app publicly.
+5. In **Authentication -> URL Configuration**, set your production **Site URL** (for example `https://trackerinvestment.netlify.app`) and add it to **Redirect URLs**. This is required for forgot-password reset links to return users to the app. For this project, include both production and local development URLs:
+   ```
+   https://trackerinvestment.netlify.app
+   https://trackerinvestment.netlify.app/
+   http://localhost:5173
+   http://localhost:5173/
+   http://127.0.0.1:5173
+   http://127.0.0.1:5173/
+   ```
+   Remove `http://localhost:3000` unless you are actually running the app on that port.
+6. In **Authentication -> Email Templates -> Reset Password**, make sure the reset button/link uses `{{ .ConfirmationURL }}`. If a template uses `{{ .SiteURL }}` directly, the email can send users to the wrong page without a valid recovery token.
+7. (Optional but recommended for testing) In **Authentication -> Providers -> Email**, you can turn off "Confirm email" while developing, so new signups can log in immediately without clicking a confirmation link. Turn it back on before sharing the app publicly.
 
 That's it -- the app talks to Supabase directly from the browser using the anon key, which is safe to expose publicly (Row Level Security is what actually protects the data, not keeping the key secret).
 
@@ -52,7 +62,7 @@ npm run preview
 2. In Netlify, connect the repo. Build command: `npm run build`. Publish directory: `dist`.
 3. In Netlify's site settings, go to **Environment variables** and add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` with the same values from your `.env` file. (Netlify never reads your local `.env` file -- you must set these in its dashboard.) After adding or changing these values, trigger a new deploy because Vite reads `VITE_*` variables during the build.
 4. Deploy. Anyone who signs up on the live site gets their own private account and data, accessible from any device they log in on.
-5. For password reset emails, confirm your live Netlify URL is listed in Supabase **Authentication -> URL Configuration -> Redirect URLs**. After changing Supabase or Netlify settings, redeploy if you changed any `VITE_*` environment variables.
+5. For password reset emails, confirm your live Netlify URL is the Supabase **Authentication -> URL Configuration -> Site URL** and is listed in **Redirect URLs**. Supabase settings take effect without a Netlify redeploy, but redeploy if you changed any `VITE_*` environment variables.
 
 ## Project structure
 
@@ -78,5 +88,5 @@ npm run preview
 
 - Each account's data is completely isolated from every other account, enforced by Postgres Row Level Security -- not just hidden in the UI.
 - Monthly pace uses `user_settings.goal`, `goal_years`, and `goal_started_at`. Changing the goal amount or target years starts a new target timeline from today.
-- Forgot-password reset emails are handled by Supabase Auth. The production URL must be allowed in Supabase redirect settings.
+- Forgot-password reset emails are handled by Supabase Auth. The production URL must be allowed in Supabase redirect settings, and expired links must be replaced by requesting a fresh reset email.
 - The anon Supabase key is meant to be public (it ships in the browser bundle) -- never put your Supabase **service role** key in this project.
