@@ -10,6 +10,7 @@ import {
   Sparkles, LogOut,
 } from "lucide-react";
 import { listDeposits, insertDeposit, updateDeposit, deleteDeposit as deleteDepositRow, bulkInsertDeposits, getSettings, upsertSettings } from "./db.js";
+import appPackage from "../package.json";
 
 /* ----------------------------------------------------------------------
    Dime Investment Tracker
@@ -17,8 +18,10 @@ import { listDeposits, insertDeposit, updateDeposit, deleteDeposit as deleteDepo
    Data persists per signed-in user via Supabase (see src/db.js and
    src/supabaseClient.js). Requires a logged-in user (see src/App.jsx).
 
-   Build marker: 2026-06-30 — adds Supabase auth/login, per-account data.
+   Build marker follows package.json version; current build adds Supabase auth/login, per-account data.
 ------------------------------------------------------------------------- */
+
+const BUILD_VERSION = appPackage.version;
 
 const THB = (n) =>
   new Intl.NumberFormat("th-TH", { maximumFractionDigits: 0 }).format(n);
@@ -1945,7 +1948,7 @@ function SettingsPage({
       </div>
 
       <p style={{ fontSize: 11, color: "var(--text-faint)", textAlign: "center", margin: "4px 0 0" }}>
-        build 2026-06-30
+        version {BUILD_VERSION}
       </p>
 
       <style>{`
